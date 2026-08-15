@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Sheet Console — Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B0F12;
+    --panel:#12181C;
+    --panel-2:#161D22;
+    --line:#232B30;
+    --text:#E8EDEE;
+    --muted:#8A979C;
+    --accent:#6EE7B7;
+    --accent-dim:#2E5B4C;
+    --warn:#F5A623;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:var(--accent-dim); color:var(--accent); }
+
+  /* ---------- Top bar ---------- */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:rgba(11,15,18,0.92);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    padding:14px 18px;
+  }
+  .header-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    flex-wrap:wrap;
+  }
+  .brand{ display:flex; align-items:baseline; gap:10px; }
+  .brand .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase;
+  }
+  h1{
+    font-family:'Sora',sans-serif; font-weight:800; font-size:20px; margin:0;
+    letter-spacing:-0.01em;
+  }
+  .sync-status{
+    display:flex; align-items:center; gap:8px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted);
+  }
+  .pulse-dot{
+    width:8px; height:8px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 0 0 rgba(110,231,183,.6);
+    flex:none;
+  }
+  .pulse-dot.live{ animation:pulse 1.6s ease-out infinite; }
+  .pulse-dot.error{ background:var(--warn); }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(110,231,183,.55); }
+    70%{ box-shadow:0 0 0 9px rgba(110,231,183,0); }
+    100%{ box-shadow:0 0 0 0 rgba(110,231,183,0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .pulse-dot.live{ animation:none; }
+  }
+
+  .controls{
+    display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;
+  }
+  .search-wrap{
+    position:relative; flex:1 1 220px; min-width:160px;
+  }
+  .search-wrap input{
+    width:100%; background:var(--panel); border:1px solid var(--line);
+    color:var(--text); border-radius:var(--radius); padding:9px 12px 9px 30px;
+    font-family:'Inter',sans-serif; font-size:13.5px; outline:none;
+  }
+  .search-wrap input:focus{ border-color:var(--accent); }
+  .search-wrap svg{ position:absolute; left:9px; top:50%; transform:translateY(-50%); opacity:.55; }
+
+  button.btn{
+    background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:var(--radius); padding:9px 14px; font-size:13px; font-weight:600;
+    font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:6px;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  button.btn:hover{ border-color:var(--accent); color:var(--accent); }
+  button.btn:focus-visible, input:focus-visible, th button:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  button.btn.primary{ background:var(--accent); color:#062017; border-color:var(--accent); }
+  button.btn.primary:hover{ color:#062017; opacity:.9; }
+  button.btn.tab{ font-weight:600; }
+  button.btn.tab.active{ background:var(--accent); color:#062017; border-color:var(--accent); }
+  button.btn.tab.active:hover{ color:#062017; }
+  .icon-spin{ animation:spin 0.9s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ---------- Main ---------- */
+  main{ padding:18px; max-width:1400px; margin:0 auto; }
+
+  .meta-row{
+    display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted);
+  }
+  .meta-row b{ color:var(--text); font-weight:600; }
+
+  .state-box{
+    border:1px dashed var(--line); border-radius:var(--radius);
+    padding:40px 20px; text-align:center; color:var(--muted);
+    font-size:13.5px;
+  }
+  .state-box.error{ border-color:var(--warn); color:var(--warn); }
+
+  .table-toolbar{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:wrap; margin-bottom:10px;
+  }
+  .updated-label{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted);
+  }
+  .updated-label b{ color:var(--accent); font-weight:600; }
+  .toolbar-actions{ display:flex; gap:8px; }
+  button.btn.small{ padding:7px 12px; font-size:12px; }
+
+  /* ---------- Table (desktop) ---------- */
+  .table-wrap{
+    background:#CFE8FB; border:2px solid #000; border-radius:var(--radius);
+    overflow:auto;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; table-layout:auto; }
+  thead th{
+    position:sticky; top:0; background:#B7DBF7;
+    text-align:left; padding:0; border:2px solid #000;
+    font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.03em;
+    color:#000; text-transform:uppercase;
+    white-space:normal; word-break:normal; overflow-wrap:break-word;
+    vertical-align:bottom; max-width:140px;
+  }
+  thead th button{
+    all:unset; cursor:pointer; display:flex; align-items:flex-end; gap:5px;
+    padding:8px 8px; width:100%; box-sizing:border-box; line-height:1.25; color:#000;
+  }
+  thead th button:hover{ color:#0B4C8C; }
+  thead th .arrow{ font-size:9px; opacity:.7; flex:none; }
+  tbody td{
+    padding:7px 8px; border:2px solid #000;
+    color:#000; font-variant-numeric:tabular-nums;
+    white-space:pre-line; overflow-wrap:break-word; max-width:220px;
+  }
+  tbody tr:last-child td{ border:2px solid #000; }
+  tbody tr:hover{ background:#BEE0FA; }
+  td.num, th.num button{ font-family:'JetBrains Mono',monospace; }
+  td.metric-good{ background:#1B5E20 !important; color:#FFFFFF; font-weight:700; }
+
+  .flash{ animation:flashcell 1.4s ease; }
+  @keyframes flashcell{
+    0%{ background:rgba(255,215,0,.55); }
+    100%{ background:transparent; }
+  }
+
+  /* ---------- Mobile cards ---------- */
+  .cards{ display:none; flex-direction:column; gap:10px; }
+  .card{
+    background:#CFE8FB; border:2px solid #000; border-left:4px solid #000;
+    border-radius:var(--radius); padding:12px 14px;
+  }
+  .card .field{
+    display:flex; justify-content:space-between; gap:10px; padding:5px 4px;
+    border-bottom:1px solid #000; font-size:13px; color:#000;
+  }
+  .card .field:last-child{ border-bottom:none; }
+  .card .field .k{ color:#0B3A5C; font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  .card .field .v{ text-align:right; font-weight:500; color:#000; white-space:pre-line; }
+  .card .field.metric-good{ background:#1B5E20; border-radius:6px; }
+  .card .field.metric-good .k, .card .field.metric-good .v{ color:#FFFFFF; font-weight:700; }
+
+  @media (max-width: 720px){
+    h1{ font-size:17px; }
+    main{ padding:12px; }
+    .table-wrap{ display:none; }
+    .cards{ display:flex; }
+  }
+
+  footer{
+    text-align:center; padding:24px 16px 40px; color:var(--muted);
+    font-family:'JetBrains Mono',monospace; font-size:11px;
+  }
+  footer a{ color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <div class="brand">
+      <div>
+        <div class="eyebrow">Live · Google Sheet</div>
+        <h1 id="sheetTitle">Sheet Console</h1>
+      </div>
+    </div>
+    <div class="sync-status">
+      <span class="pulse-dot" id="pulseDot"></span>
+      <span id="syncLabel">connecting…</span>
+    </div>
+  </div>
+  <div class="controls" id="tabRow"></div>
+  <div class="controls">
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" placeholder="Filter rows…" autocomplete="off">
+    </div>
+    <button class="btn primary" id="refreshBtn">↻ Refresh</button>
+    <button class="btn" id="autoBtn">Auto: Off</button>
+  </div>
+</header>
+
+<main>
+  <div class="meta-row">
+    <span>Rows: <b id="rowCount">–</b></span>
+    <span>Last synced: <b id="lastSynced">–</b></span>
+    <span>Next refresh: <b id="nextRefresh">–</b></span>
+  </div>
+
+  <div id="stateBox" class="state-box">Loading data…</div>
+
+  <div class="table-toolbar" id="tableToolbar" style="display:none;">
+    <span class="updated-label" id="updatedLabel">–</span>
+    <div class="toolbar-actions">
+      <button class="btn small" id="exportCsvBtn">⬇ CSV</button>
+      <button class="btn small" id="exportXlsxBtn">⬇ Excel</button>
+    </div>
+  </div>
+
+  <div class="table-wrap" id="tableWrap" style="display:none;">
+    <table id="dataTable">
+      <thead><tr id="headRow"></tr></thead>
+      <tbody id="bodyRows"></tbody>
+    </table>
+  </div>
+
+  <div class="cards" id="cardsWrap"></div>
+</main>
+
+<footer>
+  Built as a static page — edit <code>CONFIG</code> in this file to point at your own sheet.
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ============================================================
+   CONFIG
+   1. Open your Google Sheet → File → Share → "Anyone with the
+      link" set to Viewer (no need to "publish to web").
+   2. Copy the Sheet ID from the URL:
+      docs.google.com/spreadsheets/d/<SHEET_ID>/edit#gid=<GID>
+   3. Paste SHEET_ID below. List every tab (gid) you want scanned
+      in GIDS — usually just the one tab your tables live on.
+
+   You do NOT need to list individual tables or ranges. Every time
+   this page loads, it re-scans the listed tab(s) and automatically
+   finds every table on them (a table = a header row followed by
+   data rows, with a title row and/or blank rows around it). Add,
+   remove, or resize tables in the sheet and the dashboard picks
+   them up on the next refresh — no code changes needed.
+   ============================================================ */
+const CONFIG = {
+  SHEET_ID: "1R6cRutGOC_CQTbCwetZYEYnfwmbedCAwcevORYCxz8M",
+  TITLE: "Comprehensive Dashboard",
+  AUTO_REFRESH_SECONDS: 60,
+  GIDS: ["0"] // add more tab gids here, e.g. ["0", "123456789"], if tables live on multiple tabs
+};
+
+let tables = [];       // [{ label, header:[], rows:[[...]] }, ...] detected fresh on every fetch
+let activeLabel = null;
+let sheetLastModified = null; // Date the sheet was last edited, from the server's Last-Modified header (if available)
+
+function buildCsvUrl(gid){
+  return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/export?format=csv&gid=${gid}&_=${Date.now()}`;
+}
+
+function fetchGidRaw(gid){
+  return fetch(buildCsvUrl(gid), { cache: 'no-store' })
+    .then(res => {
+      if(!res.ok) throw new Error(`HTTP ${res.status} loading sheet`);
+      const lastModified = res.headers.get('last-modified');
+      return res.text().then(text => ({ text, lastModified }));
+    })
+    .then(({ text, lastModified }) => {
+      const parsed = Papa.parse(text, { header: false, skipEmptyLines: false });
+      return { rows: parsed.data || [], lastModified };
+    });
+}
+
+function isRowBlank(row){
+  return !row || row.every(c => String(c || '').trim() === '');
+}
+function nonEmptyCount(row){
+  return row.filter(c => String(c || '').trim() !== '').length;
+}
+
+/* Splits a raw grid of rows into separate tables — without requiring a
+   blank row between them. A new table starts wherever we see either:
+   (a) a blank row, then a header row, optionally preceded by a short
+       title row, or
+   (b) a short "title" row (≤2 filled cells) immediately followed by a
+       proper header row (≥4 filled cells), even with no blank row
+       before it — this lets tables sit directly beneath one another.
+   Each table's tab label comes from its own title row (or "Table N" if
+   there isn't one) — NOT from any separate menu/link list elsewhere in
+   the sheet. (Earlier versions tried to read a stacked multi-hyperlink
+   cell as a menu, but a single cell containing several hyperlinks with
+   internal line breaks doesn't export to CSV cleanly and corrupted the
+   row/column structure — if you want a link list, keep one label per
+   row/cell rather than stacking several inside one cell.) */
+function detectTables(rows){
+  const found = [];
+  let i = 0;
+  const n = rows.length;
+
+  function looksLikeTitleThenHeader(idx){
+    return nonEmptyCount(rows[idx]) <= 2 &&
+           idx + 1 < n && !isRowBlank(rows[idx + 1]) &&
+           nonEmptyCount(rows[idx + 1]) >= 4;
+  }
+
+  while(i < n){
+    while(i < n && isRowBlank(rows[i])) i++;
+    if(i >= n) break;
+
+    let label = null;
+    if(looksLikeTitleThenHeader(i)){
+      label = (rows[i].find(c => String(c || '').trim() !== '') || '').toString().trim();
+      i++;
+    }
+    if(i >= n) break;
+
+    const header = rows[i].map((h, idx) => (h && String(h).trim()) || `Column ${idx + 1}`);
+    i++;
+
+    const dataRows = [];
+    while(i < n){
+      if(isRowBlank(rows[i])){ i++; break; }
+      if(header.length >= 4 && looksLikeTitleThenHeader(i)) break; // next table starts here, no blank row needed
+      if(nonEmptyCount(rows[i]) > 0) dataRows.push(rows[i]);
+      i++;
+    }
+
+    found.push({ label: label || `Table ${found.length + 1}`, header, rows: dataRows });
+  }
+
+  // Drop junk entries: a "table" with no data rows and at most one real
+  // (non-generic) column name is very likely leftover front matter — like
+  // a stray cell — rather than an actual table you're building.
+  return found
+    .filter(t => !(t.rows.length === 0 && t.header.filter(h => !h.startsWith('Column ')).length <= 1))
+    .map(t => {
+      const pruned = pruneEmptyColumns(t.header, t.rows);
+      return { label: t.label, header: pruned.header, rows: pruned.rows };
+    });
+}
+
+function rowsToObjects(header, dataRows){
+  return dataRows.map(r => {
+    const obj = {};
+    header.forEach((h, i) => obj[h] = r[i] !== undefined ? r[i] : '');
+    return obj;
+  });
+}
+
+/* Removes columns that are completely blank across the whole table (no
+   header text and no data in any row). Google's CSV export pads every
+   row out to the widest used column anywhere on the sheet, so a table
+   with 8 real columns can come back with several extra blank ones —
+   this trims those back out. */
+function pruneEmptyColumns(header, dataRows){
+  const width = header.length;
+  const hasContent = new Array(width).fill(false);
+  header.forEach((h, i) => { if(!/^Column \d+$/.test(h)) hasContent[i] = true; });
+  dataRows.forEach(row => {
+    for(let i = 0; i < width; i++){
+      if(String(row[i] || '').trim() !== '') hasContent[i] = true;
+    }
+  });
+  const keep = [];
+  for(let i = 0; i < width; i++) if(hasContent[i]) keep.push(i);
+  return {
+    header: keep.map(i => header[i]),
+    rows: dataRows.map(row => keep.map(i => row[i]))
+  };
+}
+
+let columns = [];
+let rows = [];
+let previousRows = null;
+let sortState = { col: null, dir: 1 };
+let autoTimer = null;
+let countdownTimer = null;
+let secondsLeft = 0;
+
+const el = {
+  title: document.getElementById('sheetTitle'),
+  pulse: document.getElementById('pulseDot'),
+  syncLabel: document.getElementById('syncLabel'),
+  rowCount: document.getElementById('rowCount'),
+  lastSynced: document.getElementById('lastSynced'),
+  nextRefresh: document.getElementById('nextRefresh'),
+  stateBox: document.getElementById('stateBox'),
+  tableWrap: document.getElementById('tableWrap'),
+  headRow: document.getElementById('headRow'),
+  bodyRows: document.getElementById('bodyRows'),
+  cardsWrap: document.getElementById('cardsWrap'),
+  search: document.getElementById('searchInput'),
+  refreshBtn: document.getElementById('refreshBtn'),
+  autoBtn: document.getElementById('autoBtn'),
+  tableToolbar: document.getElementById('tableToolbar'),
+  updatedLabel: document.getElementById('updatedLabel'),
+  exportCsvBtn: document.getElementById('exportCsvBtn'),
+  exportXlsxBtn: document.getElementById('exportXlsxBtn'),
+};
+
+el.title.textContent = CONFIG.TITLE;
+
+const tabRow = document.getElementById('tabRow');
+function renderTabs(){
+  tabRow.innerHTML = '';
+  if(tables.length < 2) return; // no tabs needed for a single table
+  tables.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.className = 'btn tab' + (t.label === activeLabel ? ' active' : '');
+    btn.textContent = t.label;
+    btn.addEventListener('click', ()=>{
+      if(activeLabel === t.label) return;
+      activeLabel = t.label;
+      sortState = { col:null, dir:1 };
+      applyActiveTable();
+      renderTabs();
+      renderAll();
+    });
+    tabRow.appendChild(btn);
+  });
+}
+
+/* Column whose values get highlighted dark green when > this threshold */
+const HIGHLIGHT_COLUMN_MATCH = "% OF NODES WITH MORE THAN 98% NWA";
+const HIGHLIGHT_THRESHOLD = 85;
+
+function isHighlightColumn(colName){
+  return String(colName).toUpperCase().includes(HIGHLIGHT_COLUMN_MATCH);
+}
+function isHighlightValue(v){
+  return isNumeric(v) && parseFloat(v) > HIGHLIGHT_THRESHOLD;
+}
+
+function isNumeric(v){
+  if(v===''||v===null||v===undefined) return false;
+  return !isNaN(v) && !isNaN(parseFloat(v));
+}
+
+function fetchData(){
+  el.pulse.classList.add('live');
+  el.pulse.classList.remove('error');
+  el.syncLabel.textContent = 'syncing…';
+  el.refreshBtn.innerHTML = '<span class="icon-spin" style="display:inline-block;">↻</span> Refresh';
+
+  Promise.all(CONFIG.GIDS.map(fetchGidRaw))
+    .then(results => {
+      let found = [];
+      let latestModified = null;
+      results.forEach(r => {
+        found = found.concat(detectTables(r.rows));
+        if(r.lastModified){
+          const d = new Date(r.lastModified);
+          if(!isNaN(d) && (!latestModified || d > latestModified)) latestModified = d;
+        }
+      });
+      sheetLastModified = latestModified;
+
+      if(found.length === 0){
+        handleError(new Error('No tables detected — check that the sheet has a header row followed by data rows'));
+        return;
+      }
+
+      // de-duplicate identical labels across tables/tabs
+      const seen = {};
+      found.forEach(t => {
+        seen[t.label] = (seen[t.label] || 0) + 1;
+        if(seen[t.label] > 1) t.label = `${t.label} (${seen[t.label]})`;
+      });
+
+      previousRows = rows;
+      tables = found;
+      if(!activeLabel || !tables.some(t => t.label === activeLabel)){
+        activeLabel = tables[0].label;
+      }
+      applyActiveTable();
+
+      el.pulse.classList.remove('live','error');
+      el.syncLabel.textContent = 'connected';
+      el.lastSynced.textContent = new Date().toLocaleTimeString();
+      el.stateBox.style.display = 'none';
+      el.rowCount.textContent = rows.length;
+
+      renderTabs();
+      renderAll();
+      scheduleCountdown();
+    })
+    .catch(err => handleError(err));
+}
+
+function applyActiveTable(){
+  const t = tables.find(x => x.label === activeLabel) || tables[0];
+  columns = t.header;
+  rows = rowsToObjects(t.header, t.rows);
+}
+
+function handleError(err){
+  el.pulse.classList.remove('live');
+  el.pulse.classList.add('error');
+  el.syncLabel.textContent = 'error';
+  el.refreshBtn.innerHTML = '↻ Refresh';
+  el.stateBox.style.display = 'block';
+  el.stateBox.classList.add('error');
+  const reason = (err && (err.message || err.statusText)) ? (err.message || err.statusText) : 'Unknown error';
+  const isFileProtocol = location.protocol === 'file:';
+  el.stateBox.innerHTML =
+    `Could not load the sheet.<br>` +
+    `<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;opacity:.85;">Reason: ${escapeHtml(reason)}</span><br><br>` +
+    (isFileProtocol
+      ? `You're opening this file directly (file://). Google often blocks that. Host it (GitHub Pages / Netlify / Cloudflare Pages — see README) and open the https:// link instead.`
+      : `Double-check CONFIG.SHEET_ID, the GID/range for this view, and that the sheet is shared as "Anyone with the link → Viewer".`);
+  el.tableWrap.style.display = 'none';
+  el.cardsWrap.innerHTML = '';
+  console.error(err);
+}
+
+function applySort(data){
+  if(sortState.col === null) return data;
+  const col = columns[sortState.col];
+  const numeric = data.every(r => isNumeric(r[col]) || r[col] === '');
+  return [...data].sort((a,b)=>{
+    let av = a[col], bv = b[col];
+    if(numeric){ av = parseFloat(av)||0; bv = parseFloat(bv)||0; return (av-bv)*sortState.dir; }
+    return String(av).localeCompare(String(bv)) * sortState.dir;
+  });
+}
+
+function applyFilter(data){
+  const q = el.search.value.trim().toLowerCase();
+  if(!q) return data;
+  return data.filter(r => columns.some(c => String(r[c]).toLowerCase().includes(q)));
+}
+
+function formatUpdatedLabel(){
+  if(sheetLastModified){
+    return `Sheet data last updated: <b>${sheetLastModified.toLocaleString()}</b>`;
+  }
+  return `Sheet's own update time isn't available — showing last check instead: <b>${el.lastSynced.textContent}</b>`;
+}
+
+function renderAll(){
+  let view = applyFilter(rows);
+  view = applySort(view);
+  renderTable(view);
+  renderCards(view);
+  el.tableWrap.style.display = 'block';
+  el.tableToolbar.style.display = 'flex';
+  el.updatedLabel.innerHTML = formatUpdatedLabel();
+  if(rows.length === 0){
+    el.stateBox.style.display = 'block';
+    el.stateBox.classList.remove('error');
+    el.stateBox.textContent = 'This table has headers but no data rows yet — add rows in the sheet and hit Refresh.';
+  } else {
+    el.stateBox.style.display = 'none';
+  }
+}
+
+function currentViewRows(){
+  return applySort(applyFilter(rows));
+}
+
+function safeFilename(){
+  return (activeLabel || 'export').replace(/[^a-z0-9\-_ ]/gi, '').trim().slice(0, 60) || 'export';
+}
+
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportCsv(){
+  const view = currentViewRows();
+  const csv = Papa.unparse({ fields: columns, data: view.map(r => columns.map(c => r[c])) });
+  downloadBlob(csv, `${safeFilename()}.csv`, 'text/csv;charset=utf-8;');
+}
+
+function exportXlsx(){
+  const view = currentViewRows();
+  const wsData = [columns, ...view.map(r => columns.map(c => r[c]))];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, safeFilename().slice(0, 31) || 'Sheet1');
+  XLSX.writeFile(wb, `${safeFilename()}.xlsx`);
+}
+
+el.exportCsvBtn.addEventListener('click', exportCsv);
+el.exportXlsxBtn.addEventListener('click', exportXlsx);
+
+function renderTable(view){
+  el.headRow.innerHTML = '';
+  columns.forEach((c,i)=>{
+    const th = document.createElement('th');
+    const numeric = rows.every(r => isNumeric(r[c]) || r[c]==='');
+    if(numeric) th.classList.add('num');
+    const btn = document.createElement('button');
+    const arrow = sortState.col === i ? (sortState.dir === 1 ? '▲' : '▼') : '';
+    btn.innerHTML = `<span>${escapeHtml(c)}</span><span class="arrow">${arrow}</span>`;
+    btn.addEventListener('click', ()=>{
+      if(sortState.col === i){ sortState.dir *= -1; } else { sortState.col = i; sortState.dir = 1; }
+      renderAll();
+    });
+    th.appendChild(btn);
+    el.headRow.appendChild(th);
+  });
+
+  el.bodyRows.innerHTML = '';
+  view.forEach(r=>{
+    const tr = document.createElement('tr');
+    columns.forEach(c=>{
+      const td = document.createElement('td');
+      const numeric = isNumeric(r[c]);
+      if(numeric) td.classList.add('num');
+      if(isHighlightColumn(c) && isHighlightValue(r[c])) td.classList.add('metric-good');
+      td.textContent = r[c];
+      tr.appendChild(td);
+    });
+    el.bodyRows.appendChild(tr);
+  });
+}
+
+function renderCards(view){
+  el.cardsWrap.innerHTML = '';
+  view.forEach(r=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    columns.forEach(c=>{
+      const field = document.createElement('div');
+      field.className = 'field';
+      if(isHighlightColumn(c) && isHighlightValue(r[c])) field.classList.add('metric-good');
+      field.innerHTML = `<span class="k">${escapeHtml(c)}</span><span class="v">${escapeHtml(String(r[c]))}</span>`;
+      card.appendChild(field);
+    });
+    el.cardsWrap.appendChild(card);
+  });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function scheduleCountdown(){
+  clearInterval(countdownTimer);
+  if(!autoTimer){ el.nextRefresh.textContent = '–'; return; }
+  secondsLeft = CONFIG.AUTO_REFRESH_SECONDS;
+  el.nextRefresh.textContent = secondsLeft + 's';
+  countdownTimer = setInterval(()=>{
+    secondsLeft--;
+    el.nextRefresh.textContent = secondsLeft > 0 ? secondsLeft + 's' : '…';
+    if(secondsLeft <= 0) clearInterval(countdownTimer);
+  }, 1000);
+}
+
+el.search.addEventListener('input', renderAll);
+el.refreshBtn.addEventListener('click', fetchData);
+el.autoBtn.addEventListener('click', ()=>{
+  if(autoTimer){
+    clearInterval(autoTimer); autoTimer = null; clearInterval(countdownTimer);
+    el.autoBtn.textContent = 'Auto: Off';
+    el.nextRefresh.textContent = '–';
+  } else {
+    autoTimer = setInterval(fetchData, CONFIG.AUTO_REFRESH_SECONDS * 1000);
+    el.autoBtn.textContent = 'Auto: On';
+    scheduleCountdown();
+  }
+});
+
+fetchData();
+</script>
+</body>
+</html>
