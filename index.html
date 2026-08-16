@@ -159,6 +159,7 @@
   tbody tr:hover{ background:#BEE0FA; }
   td.num, th.num button{ font-family:'JetBrains Mono',monospace; }
   td.metric-good{ background:#1B5E20 !important; color:#FFFFFF; font-weight:700; }
+  td.metric-bad{ background:#B71C1C !important; color:#FFFFFF; font-weight:700; }
 
   .flash{ animation:flashcell 1.4s ease; }
   @keyframes flashcell{
@@ -181,6 +182,8 @@
   .card .field .v{ text-align:right; font-weight:500; color:#000; white-space:pre-line; }
   .card .field.metric-good{ background:#1B5E20; border-radius:6px; }
   .card .field.metric-good .k, .card .field.metric-good .v{ color:#FFFFFF; font-weight:700; }
+  .card .field.metric-bad{ background:#B71C1C; border-radius:6px; }
+  .card .field.metric-bad .k, .card .field.metric-bad .v{ color:#FFFFFF; font-weight:700; }
 
   @media (max-width: 720px){
     h1{ font-size:17px; }
@@ -449,15 +452,38 @@ function renderTabs(){
   });
 }
 
-/* Column whose values get highlighted dark green when > this threshold */
-const HIGHLIGHT_COLUMN_MATCH = "% OF NODES WITH MORE THAN 98% NWA";
-const HIGHLIGHT_THRESHOLD = 85;
+/* Conditional cell-coloring rules. Each rule: matches a column by name
+   (case-insensitive substring), optionally only within a specific table
+   (also case-insensitive substring match on the tab label), and returns
+   a CSS class name ('metric-good' = dark green, 'metric-bad' = red) for
+   a given cell value, or null to leave it uncolored. Add more rules here
+   the same way to color other columns in future. */
+const CONDITIONAL_RULES = [
+  {
+    // "% OF NODES WITH MORE THAN 98% NWA" column, any table: dark green if > 85
+    tableMatch: null,
+    columnMatch: "% OF NODES WITH MORE THAN 98% NWA",
+    classify: v => (isNumeric(v) && parseFloat(v) > 85) ? 'metric-good' : null
+  },
+  {
+    // "Avail." column, only in the "NWA OF DBN SITES" table: red if < 98, green otherwise
+    tableMatch: "NWA OF DBN SITES",
+    columnMatch: "AVAIL",
+    classify: v => {
+      if(!isNumeric(v)) return null;
+      return parseFloat(v) < 98 ? 'metric-bad' : 'metric-good';
+    }
+  }
+];
 
-function isHighlightColumn(colName){
-  return String(colName).toUpperCase().includes(HIGHLIGHT_COLUMN_MATCH);
-}
-function isHighlightValue(v){
-  return isNumeric(v) && parseFloat(v) > HIGHLIGHT_THRESHOLD;
+function classifyCell(colName, value){
+  for(const rule of CONDITIONAL_RULES){
+    if(!String(colName).toUpperCase().includes(rule.columnMatch.toUpperCase())) continue;
+    if(rule.tableMatch && !String(activeLabel || '').toUpperCase().includes(rule.tableMatch.toUpperCase())) continue;
+    const cls = rule.classify(value);
+    if(cls) return cls;
+  }
+  return null;
 }
 
 function isNumeric(v){
@@ -645,7 +671,9 @@ function renderTable(view){
       const td = document.createElement('td');
       const numeric = isNumeric(r[c]);
       if(numeric) td.classList.add('num');
-      if(isHighlightColumn(c) && isHighlightValue(r[c])) td.classList.add('metric-good');
+      const cellClass = classifyCell(c, r[c]);
+      if(cellClass) td.classList.add(cellClass);
+
       td.textContent = r[c];
       tr.appendChild(td);
     });
@@ -661,7 +689,8 @@ function renderCards(view){
     columns.forEach(c=>{
       const field = document.createElement('div');
       field.className = 'field';
-      if(isHighlightColumn(c) && isHighlightValue(r[c])) field.classList.add('metric-good');
+      const fieldClass = classifyCell(c, r[c]);
+      if(fieldClass) field.classList.add(fieldClass);
       field.innerHTML = `<span class="k">${escapeHtml(c)}</span><span class="v">${escapeHtml(String(r[c]))}</span>`;
       card.appendChild(field);
     });
