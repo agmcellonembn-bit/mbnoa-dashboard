@@ -161,6 +161,11 @@
   td.metric-good{ background:#1B5E20 !important; color:#FFFFFF; font-weight:700; }
   td.metric-bad{ background:#B71C1C !important; color:#FFFFFF; font-weight:700; }
 
+  /* Dark-blue header override for specific tables (see DARK_HEADER_TABLE_MATCHES in JS) */
+  .table-wrap.header-dark thead th{ background:#0B2E6B; color:#FFFFFF; }
+  .table-wrap.header-dark thead th button{ color:#FFFFFF; }
+  .table-wrap.header-dark thead th button:hover{ color:#BFD7FF; }
+
   .flash{ animation:flashcell 1.4s ease; }
   @keyframes flashcell{
     0%{ background:rgba(255,215,0,.55); }
@@ -452,18 +457,33 @@ function renderTabs(){
   });
 }
 
-/* Conditional cell-coloring rules. Each rule: matches a column by name
-   (case-insensitive substring), optionally only within a specific table
-   (also case-insensitive substring match on the tab label), and returns
-   a CSS class name ('metric-good' = dark green, 'metric-bad' = red) for
-   a given cell value, or null to leave it uncolored. Add more rules here
-   the same way to color other columns in future. */
+/* Tables whose header row should render dark-blue-with-white-text instead
+   of the default light-blue-with-black-text (case-insensitive substring
+   match on the tab label). Add more strings here to darken other tables'
+   headers in future. */
+const DARK_HEADER_TABLE_MATCHES = [
+  "Bharat Fiber-BB Gross/DISC/ NET Achievement"
+];
+
+function tableWantsDarkHeader(){
+  const label = String(activeLabel || '').toUpperCase();
+  return DARK_HEADER_TABLE_MATCHES.some(m => label.includes(m.toUpperCase()));
+}
+
+/* Conditional cell-coloring rules. Each rule matches cells either by
+   column name (columnMatch: case-insensitive substring) or by fixed
+   column position (columnIndex: 0-based, i.e. 8 = the 9th column),
+   optionally only within a specific table (tableMatch: case-insensitive
+   substring match on the tab label), and returns a CSS class name
+   ('metric-good' = dark green, 'metric-bad' = red) for a given cell
+   value, or null to leave it uncolored. Add more rules here the same way
+   to color other columns in future. */
 const CONDITIONAL_RULES = [
   {
     // "% OF NODES WITH MORE THAN 98% NWA" column, any table: dark green if > 85
     tableMatch: null,
     columnMatch: "% OF NODES WITH MORE THAN 98% NWA",
-    classify: v => (isNumeric(v) && parseFloat(v) > 85) ? 'metric-good' : null
+    classify: v => (isNumeric(v) && parseNumber(v) > 85) ? 'metric-good' : null
   },
   {
     // "Avail." column, only in the "NWA OF DBN SITES" table: red if < 98, green otherwise
@@ -471,14 +491,25 @@ const CONDITIONAL_RULES = [
     columnMatch: "AVAIL",
     classify: v => {
       if(!isNumeric(v)) return null;
-      return parseFloat(v) < 98 ? 'metric-bad' : 'metric-good';
+      return parseNumber(v) < 98 ? 'metric-bad' : 'metric-good';
+    }
+  },
+  {
+    // Column 9 (0-based index 8), only in the "...Bharat Fiber-BB Gross/DISC/
+    // NET Achievement..." table: red if negative, green otherwise
+    tableMatch: "Bharat Fiber-BB Gross/DISC/ NET Achievement",
+    columnIndex: 8,
+    classify: v => {
+      if(!isNumeric(v)) return null;
+      return parseNumber(v) < 0 ? 'metric-bad' : 'metric-good';
     }
   }
 ];
 
-function classifyCell(colName, value){
+function classifyCell(colName, value, colIndex){
   for(const rule of CONDITIONAL_RULES){
-    if(!String(colName).toUpperCase().includes(rule.columnMatch.toUpperCase())) continue;
+    if(rule.columnMatch && !String(colName).toUpperCase().includes(rule.columnMatch.toUpperCase())) continue;
+    if(rule.columnIndex !== undefined && colIndex !== rule.columnIndex) continue;
     if(rule.tableMatch && !String(activeLabel || '').toUpperCase().includes(rule.tableMatch.toUpperCase())) continue;
     const cls = rule.classify(value);
     if(cls) return cls;
@@ -488,7 +519,13 @@ function classifyCell(colName, value){
 
 function isNumeric(v){
   if(v===''||v===null||v===undefined) return false;
-  return !isNaN(v) && !isNaN(parseFloat(v));
+  return !isNaN(parseNumber(v));
+}
+function parseNumber(v){
+  if(v===''||v===null||v===undefined) return NaN;
+  const cleaned = String(v).replace(/[,%\s]/g,'').trim();
+  if(cleaned==='') return NaN;
+  return parseFloat(cleaned);
 }
 
 function fetchData(){
@@ -574,7 +611,7 @@ function applySort(data){
   const numeric = data.every(r => isNumeric(r[col]) || r[col] === '');
   return [...data].sort((a,b)=>{
     let av = a[col], bv = b[col];
-    if(numeric){ av = parseFloat(av)||0; bv = parseFloat(bv)||0; return (av-bv)*sortState.dir; }
+    if(numeric){ av = parseNumber(av)||0; bv = parseNumber(bv)||0; return (av-bv)*sortState.dir; }
     return String(av).localeCompare(String(bv)) * sortState.dir;
   });
 }
@@ -648,6 +685,8 @@ el.exportCsvBtn.addEventListener('click', exportCsv);
 el.exportXlsxBtn.addEventListener('click', exportXlsx);
 
 function renderTable(view){
+  el.tableWrap.classList.toggle('header-dark', tableWantsDarkHeader());
+
   el.headRow.innerHTML = '';
   columns.forEach((c,i)=>{
     const th = document.createElement('th');
@@ -667,11 +706,11 @@ function renderTable(view){
   el.bodyRows.innerHTML = '';
   view.forEach(r=>{
     const tr = document.createElement('tr');
-    columns.forEach(c=>{
+    columns.forEach((c,i)=>{
       const td = document.createElement('td');
       const numeric = isNumeric(r[c]);
       if(numeric) td.classList.add('num');
-      const cellClass = classifyCell(c, r[c]);
+      const cellClass = classifyCell(c, r[c], i);
       if(cellClass) td.classList.add(cellClass);
 
       td.textContent = r[c];
@@ -686,10 +725,10 @@ function renderCards(view){
   view.forEach(r=>{
     const card = document.createElement('div');
     card.className = 'card';
-    columns.forEach(c=>{
+    columns.forEach((c,i)=>{
       const field = document.createElement('div');
       field.className = 'field';
-      const fieldClass = classifyCell(c, r[c]);
+      const fieldClass = classifyCell(c, r[c], i);
       if(fieldClass) field.classList.add(fieldClass);
       field.innerHTML = `<span class="k">${escapeHtml(c)}</span><span class="v">${escapeHtml(String(r[c]))}</span>`;
       card.appendChild(field);
