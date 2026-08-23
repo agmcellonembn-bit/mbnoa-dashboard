@@ -166,6 +166,20 @@
   .table-wrap.header-dark thead th button{ color:#FFFFFF; }
   .table-wrap.header-dark thead th button:hover{ color:#BFD7FF; }
 
+  /* Center-aligned, content-width columns for specific tables (see
+     CENTERED_FIT_TABLE_MATCHES in JS). Dropping the wrap/max-width rules
+     lets table-layout:auto size each column to its own widest cell
+     instead of every column sharing the same fixed width. */
+  .table-wrap.centered-fit thead th{
+    text-align:center; vertical-align:middle;
+    white-space:nowrap; max-width:none;
+  }
+  .table-wrap.centered-fit thead th button{ justify-content:center; align-items:center; }
+  .table-wrap.centered-fit tbody td{
+    text-align:center; vertical-align:middle;
+    white-space:nowrap; max-width:none;
+  }
+
   .flash{ animation:flashcell 1.4s ease; }
   @keyframes flashcell{
     0%{ background:rgba(255,215,0,.55); }
@@ -189,6 +203,15 @@
   .card .field.metric-good .k, .card .field.metric-good .v{ color:#FFFFFF; font-weight:700; }
   .card .field.metric-bad{ background:#B71C1C; border-radius:6px; }
   .card .field.metric-bad .k, .card .field.metric-bad .v{ color:#FFFFFF; font-weight:700; }
+
+  /* Centered mobile card layout for specific tables (see
+     CENTERED_FIT_TABLE_MATCHES in JS) — label stacked above value, both
+     centered, instead of the default label-left/value-right row. Reads
+     better on a phone for a table with many columns. */
+  .cards.centered-fit .field{
+    flex-direction:column; align-items:center; text-align:center; gap:3px;
+  }
+  .cards.centered-fit .field .v{ text-align:center; }
 
   @media (max-width: 720px){
     h1{ font-size:17px; }
@@ -470,6 +493,20 @@ function tableWantsDarkHeader(){
   return DARK_HEADER_TABLE_MATCHES.some(m => label.includes(m.toUpperCase()));
 }
 
+/* Tables that should render with centered cell/header text and columns
+   sized to fit their own content (desktop table) plus a centered,
+   stacked label/value layout (mobile cards), instead of the default
+   left-aligned, fixed-width layout. Add more strings here to apply the
+   same treatment to other tables in future. */
+const CENTERED_FIT_TABLE_MATCHES = [
+  "Bharat Fiber-BB Gross/DISC/ NET Achievement"
+];
+
+function tableWantsCenteredFit(){
+  const label = String(activeLabel || '').toUpperCase();
+  return CENTERED_FIT_TABLE_MATCHES.some(m => label.includes(m.toUpperCase()));
+}
+
 /* Conditional cell-coloring rules. Each rule matches cells either by
    column name (columnMatch: case-insensitive substring) or by fixed
    column position (columnIndex: 0-based, i.e. 8 = the 9th column),
@@ -686,6 +723,7 @@ el.exportXlsxBtn.addEventListener('click', exportXlsx);
 
 function renderTable(view){
   el.tableWrap.classList.toggle('header-dark', tableWantsDarkHeader());
+  el.tableWrap.classList.toggle('centered-fit', tableWantsCenteredFit());
 
   el.headRow.innerHTML = '';
   columns.forEach((c,i)=>{
@@ -721,6 +759,7 @@ function renderTable(view){
 }
 
 function renderCards(view){
+  el.cardsWrap.classList.toggle('centered-fit', tableWantsCenteredFit());
   el.cardsWrap.innerHTML = '';
   view.forEach(r=>{
     const card = document.createElement('div');
