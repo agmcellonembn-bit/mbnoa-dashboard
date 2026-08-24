@@ -325,6 +325,15 @@ let tables = [];       // [{ label, header:[], rows:[[...]] }, ...] detected fre
 let activeLabel = null;
 let sheetLastModified = null; // Date the sheet was last edited, from the server's Last-Modified header (if available)
 
+// Reads the table name a tab click asked this window to open (see
+// renderTabs()), passed via the URL hash so a plain new-tab/new-window
+// open lands on the right table instead of always defaulting to the first.
+function getHashTableLabel(){
+  const raw = location.hash.replace(/^#/, '');
+  if(!raw) return null;
+  try{ return decodeURIComponent(raw); } catch(e){ return raw; }
+}
+
 function buildCsvUrl(gid){
   return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/export?format=csv&gid=${gid}&_=${Date.now()}`;
 }
@@ -479,13 +488,11 @@ function renderTabs(){
     const btn = document.createElement('button');
     btn.className = 'btn tab' + (t.label === activeLabel ? ' active' : '');
     btn.textContent = `${idx + 1}. ${t.label}`;
+    btn.title = 'Opens this table in a new window';
     btn.addEventListener('click', ()=>{
-      if(activeLabel === t.label) return;
-      activeLabel = t.label;
-      sortState = { col:null, dir:1 };
-      applyActiveTable();
-      renderTabs();
-      renderAll();
+      const url = new URL(window.location.href);
+      url.hash = encodeURIComponent(t.label);
+      window.open(url.toString(), '_blank', 'noopener');
     });
     tabRow.appendChild(btn);
   });
@@ -609,7 +616,13 @@ function fetchData(){
 
       previousRows = rows;
       tables = found;
-      if(!activeLabel || !tables.some(t => t.label === activeLabel)){
+      if(!activeLabel){
+        // First load in this window: honor a table requested via the URL
+        // hash (set when a tab was clicked to "open in a new window"),
+        // falling back to the first table.
+        const requested = getHashTableLabel();
+        activeLabel = (requested && tables.some(t => t.label === requested)) ? requested : tables[0].label;
+      } else if(!tables.some(t => t.label === activeLabel)){
         activeLabel = tables[0].label;
       }
       applyActiveTable();
