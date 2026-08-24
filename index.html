@@ -97,9 +97,20 @@
   }
   button.btn.primary{ background:var(--accent); color:#062017; border-color:var(--accent); }
   button.btn.primary:hover{ color:#062017; opacity:.9; }
-  button.btn.tab{ font-weight:600; }
-  button.btn.tab.active{ background:var(--accent); color:#062017; border-color:var(--accent); }
-  button.btn.tab.active:hover{ color:#062017; }
+  /* Table-name tabs: stacked one below another, dark blue background,
+     bold white text. The active tab keeps the same colors and is marked
+     with an accent-colored ring so it's still clearly distinguishable. */
+  #tabRow{ flex-direction:column; align-items:stretch; gap:6px; }
+  button.btn.tab{
+    font-weight:700; justify-content:flex-start; text-align:left;
+    background:#0B2E6B; color:#FFFFFF; border-color:#0B2E6B;
+  }
+  button.btn.tab:hover{ background:#123B85; border-color:#123B85; color:#FFFFFF; }
+  button.btn.tab.active{
+    background:#0B2E6B; color:#FFFFFF; border-color:var(--accent);
+    box-shadow:inset 0 0 0 2px var(--accent);
+  }
+  button.btn.tab.active:hover{ background:#123B85; color:#FFFFFF; }
   .icon-spin{ animation:spin 0.9s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
@@ -464,10 +475,10 @@ const tabRow = document.getElementById('tabRow');
 function renderTabs(){
   tabRow.innerHTML = '';
   if(tables.length < 2) return; // no tabs needed for a single table
-  tables.forEach(t=>{
+  tables.forEach((t,idx)=>{
     const btn = document.createElement('button');
     btn.className = 'btn tab' + (t.label === activeLabel ? ' active' : '');
-    btn.textContent = t.label;
+    btn.textContent = `${idx + 1}. ${t.label}`;
     btn.addEventListener('click', ()=>{
       if(activeLabel === t.label) return;
       activeLabel = t.label;
