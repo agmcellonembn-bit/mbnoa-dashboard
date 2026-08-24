@@ -481,8 +481,13 @@ const el = {
 el.title.textContent = CONFIG.TITLE;
 
 const tabRow = document.getElementById('tabRow');
+// This window was opened by clicking a table tab (see renderTabs' click
+// handler below), so it's a focused single-table view: hide the tab list
+// entirely and just show that one table.
+const IS_FOCUSED_VIEW = !!getHashTableLabel();
 function renderTabs(){
   tabRow.innerHTML = '';
+  if(IS_FOCUSED_VIEW) return; // single-table view: no tab list here
   if(tables.length < 2) return; // no tabs needed for a single table
   tables.forEach((t,idx)=>{
     const btn = document.createElement('button');
