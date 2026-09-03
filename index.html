@@ -191,6 +191,17 @@
     white-space:nowrap; max-width:none;
   }
 
+  /* Center all columns except the first one, for every table. */
+  thead th:not(:first-child){
+    text-align:center;
+  }
+  thead th:not(:first-child) button{
+    justify-content:center; align-items:center;
+  }
+  tbody td:not(:first-child){
+    text-align:center;
+  }
+
   .flash{ animation:flashcell 1.4s ease; }
   @keyframes flashcell{
     0%{ background:rgba(255,215,0,.55); }
