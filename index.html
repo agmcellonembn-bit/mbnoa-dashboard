@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -335,6 +335,7 @@ const CONFIG = {
   SHEET_ID: "1R6cRutGOC_CQTbCwetZYEYnfwmbedCAwcevORYCxz8M",
   TITLE: "INTEGRATED DASHBOARD OF MBN OA",
   AUTO_REFRESH_SECONDS: 60,
+  API_KEY: "AIzaSyAVrhHs2xiCl2kF1_IujMxHZDk6tNmsjY4", // from Google Cloud Console, with the "Google Sheets API" enabled
   CATEGORIES: [
     { name: "CFA",          color: "#2E9E7C" },
     { name: "CM",           color: "#17C4E6" },
@@ -346,20 +347,54 @@ const CONFIG = {
 
 /* ---------------- Shared sheet-fetching + table-detection ---------------- */
 
-function buildSheetCsvUrl(sheetName){
-  return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&_=${Date.now()}`;
+/* Fetches one tab via the Google Sheets API (not the plain CSV export) so
+   we get back the EXACT merged-cell ranges alongside the values — no more
+   guessing which columns are grouped from blank-cell patterns. Requires
+   CONFIG.API_KEY with the Sheets API enabled, and the sheet still shared
+   as "Anyone with the link → Viewer" (a plain API key only works for
+   public/link-shared sheets, not private ones). */
+function buildSheetApiUrl(sheetName){
+  const fields = 'sheets(data(rowData(values(formattedValue))),merges)';
+  return `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}` +
+    `?ranges=${encodeURIComponent(sheetName)}&includeGridData=true` +
+    `&fields=${encodeURIComponent(fields)}&key=${encodeURIComponent(CONFIG.API_KEY)}`;
 }
 
 function fetchSheetGrid(sheetName){
-  return fetch(buildSheetCsvUrl(sheetName), { cache: 'no-store' })
-    .then(res => {
-      if(!res.ok) throw new Error(`HTTP ${res.status} loading "${sheetName}" tab`);
-      const lastModified = res.headers.get('last-modified');
-      return res.text().then(text => ({ text, lastModified }));
-    })
-    .then(({ text, lastModified }) => {
-      const parsed = Papa.parse(text, { header: false, skipEmptyLines: false });
-      return { rows: parsed.data || [], lastModified };
+  if(!CONFIG.API_KEY || CONFIG.API_KEY.indexOf('PASTE_YOUR') === 0){
+    return Promise.reject(new Error('No Google API key set — paste one into CONFIG.API_KEY near the top of the script.'));
+  }
+  return fetch(buildSheetApiUrl(sheetName), { cache: 'no-store' })
+    .then(res => res.json().then(json => ({ ok: res.ok, status: res.status, json })))
+    .then(({ ok, status, json }) => {
+      if(!ok){
+        const apiMsg = json && json.error && json.error.message;
+        throw new Error(apiMsg ? `Sheets API: ${apiMsg}` : `HTTP ${status} loading "${sheetName}" tab`);
+      }
+      const sheetObj = (json.sheets && json.sheets[0]) || {};
+      const dataBlock = (sheetObj.data && sheetObj.data[0]) || {};
+      const rowDataArr = dataBlock.rowData || [];
+      const rawRows = rowDataArr.map(rd =>
+        (rd.values || []).map(v => (v && v.formattedValue !== undefined) ? v.formattedValue : '')
+      );
+      const mergesRaw = sheetObj.merges || [];
+      const width = Math.max(
+        0,
+        ...rawRows.map(r => r.length),
+        ...mergesRaw.map(m => m.endColumnIndex || 0)
+      );
+      const rows = rawRows.map(r => {
+        const copy = r.slice();
+        while(copy.length < width) copy.push('');
+        return copy;
+      });
+      const merges = mergesRaw.map(m => ({
+        startRowIndex: m.startRowIndex || 0,
+        endRowIndex: m.endRowIndex,
+        startColumnIndex: m.startColumnIndex || 0,
+        endColumnIndex: m.endColumnIndex
+      }));
+      return { rows, merges, lastModified: null };
     });
 }
 
@@ -371,19 +406,20 @@ function nonEmptyCount(row){
 }
 
 /* Splits a raw grid of rows into separate tables — without requiring a
-   blank row between them. A new table starts wherever we see either:
-   (a) a blank row, then a header row, optionally preceded by a short
-       title row, or
-   (b) a short "title" row (a single filled cell — typical of a merged
-       title cell spanning the table's width) immediately followed by a
-       row with more filled cells than the title row itself (the real
-       header row), even with no blank row before it — this lets tables
-       sit directly beneath one another and works for tables as narrow
-       as 2 columns, not just wide ones. */
-function detectTables(rows){
+   blank row between them — using the sheet's ACTUAL merged-cell ranges
+   (from the Sheets API) to build compound headers exactly, rather than
+   guessing group boundaries from blank-cell patterns. A new table starts
+   wherever we see either a blank row then a header row (optionally
+   preceded by a short title row), or a short title row immediately
+   followed by a wider header row with no blank line between them. */
+function detectTables(rows, merges){
   const found = [];
   let i = 0;
   const n = rows.length;
+
+  function mergesStartingAtRow(rowIdx){
+    return merges.filter(m => m.startRowIndex === rowIdx);
+  }
 
   function looksLikeTitleThenHeader(idx){
     const titleCount = nonEmptyCount(rows[idx]);
@@ -407,75 +443,96 @@ function detectTables(rows){
     }
     if(i >= n) break;
 
-    const headerRawRow = rows[i];
-    const blankMask = headerRawRow.map(h => !(h && String(h).trim() !== ''));
-    let lastHeaderText = null;
-    const groupLabelPerCol = headerRawRow.map((h, idx) => {
-      const raw = (h && String(h).trim()) || '';
-      if(raw) lastHeaderText = raw;
-      return raw || lastHeaderText || `Column ${idx + 1}`;
-    });
-    i++;
+    const groupRowIdx = i;
+    const width = rows[groupRowIdx].length;
 
-    /* Some sheets use a compound header: a group row (e.g. "Sep-2026
-       Targets" merged across a few columns) sitting above a second row
-       that supplies the real per-column sub-labels (e.g. "Mthly",
-       "WKLY") — while columns with no grouping (like "SDCA") just have
-       their one label spanning both rows, leaving that column blank in
-       the row below. Detect that second row here: it only counts as a
-       genuine sub-header row if it mostly fills in exactly the columns
-       that were blank in the group row above (rather than, say, being
-       an ordinary data row that happens to have a couple of matching
-       gaps by coincidence). */
-    let subHeaderRaw = null;
-    if(i < n && !isRowBlank(rows[i])){
-      const candidate = rows[i];
-      let fillableBlanks = 0, filledOfThose = 0;
-      for(let j = 0; j < headerRawRow.length; j++){
-        if(blankMask[j]){
-          fillableBlanks++;
-          if(String(candidate[j] || '').trim() !== '') filledOfThose++;
+    // Merges that START on the group-header row, mapped per column. A
+    // merge spanning down into the row below (endRowIndex > groupRowIdx+1)
+    // means that column's single label spans both header rows (like
+    // "SDCA"). A merge confined to this one row but spanning several
+    // columns (e.g. "Sep-2026 Targets") means those columns share a group
+    // label and expect a real sub-label per column in the row beneath.
+    const rowMergesHere = mergesStartingAtRow(groupRowIdx).filter(m => m.startColumnIndex < width);
+    const mergeForCol = new Array(width).fill(null);
+    rowMergesHere.forEach(m => {
+      for(let c = m.startColumnIndex; c < Math.min(m.endColumnIndex, width); c++) mergeForCol[c] = m;
+    });
+
+    const anyHorizontalOnlyMerges = rowMergesHere.filter(m =>
+      (m.endRowIndex - m.startRowIndex) === 1 && (m.endColumnIndex - m.startColumnIndex) > 1
+    );
+    const subRowIdx = groupRowIdx + 1;
+    let usesSubHeader = false;
+    if(anyHorizontalOnlyMerges.length > 0 && subRowIdx < n && !isRowBlank(rows[subRowIdx])){
+      // Only check the columns that actually need a sub-label (the ones
+      // inside a horizontal-only merge) — and require the row below to
+      // hold non-numeric text there, not numbers, so a genuine first data
+      // row doesn't get mistaken for a sub-header row.
+      let totalCols = 0, textCols = 0;
+      anyHorizontalOnlyMerges.forEach(m => {
+        for(let c = m.startColumnIndex; c < Math.min(m.endColumnIndex, width); c++){
+          totalCols++;
+          const val = String(rows[subRowIdx][c] || '').trim();
+          if(val !== '' && !isNumeric(val)) textCols++;
         }
-      }
-      if(fillableBlanks >= 1 && filledOfThose >= Math.ceil(fillableBlanks * 0.6)){
-        subHeaderRaw = candidate;
-        i++;
+      });
+      usesSubHeader = totalCols > 0 && textCols >= Math.ceil(totalCols * 0.6);
+    }
+
+    const clusters = [];
+    let col = 0;
+    while(col < width){
+      const m = mergeForCol[col];
+      if(m){
+        const span = Math.min(m.endColumnIndex, width) - m.startColumnIndex;
+        const spansIntoRowBelow = (m.endRowIndex - m.startRowIndex) > 1;
+        const label = String(rows[groupRowIdx][m.startColumnIndex] || '').trim() || `Group ${clusters.length + 1}`;
+        if(!spansIntoRowBelow && usesSubHeader){
+          clusters.push({ start: col, span, sub: true, label });
+        } else {
+          clusters.push({ start: col, span, sub: false, label });
+        }
+        col += span;
+      } else {
+        const raw = String(rows[groupRowIdx][col] || '').trim();
+        const label = raw || `Column ${col + 1}`;
+        // A plain, un-merged column only needs a sub-label if the row
+        // below genuinely has text there for it — otherwise it's a
+        // standalone column that just happens to sit beside a compound
+        // header, and should span both header rows on its own.
+        const subVal = usesSubHeader ? String(rows[subRowIdx][col] || '').trim() : '';
+        clusters.push({ start: col, span: 1, sub: !!subVal, label });
+        col += 1;
       }
     }
 
-    const hasSub = headerRawRow.map((_, j) => !!(subHeaderRaw && String(subHeaderRaw[j] || '').trim() !== ''));
+    i = usesSubHeader ? subRowIdx + 1 : groupRowIdx + 1;
+
     const seenKeyCounts = {};
-    const header = headerRawRow.map((_, j) => {
-      const base = hasSub[j] ? `${groupLabelPerCol[j]} - ${String(subHeaderRaw[j]).trim()}` : groupLabelPerCol[j];
+    function keyFor(base){
       seenKeyCounts[base] = (seenKeyCounts[base] || 0) + 1;
       return seenKeyCounts[base] > 1 ? `${base} (${seenKeyCounts[base]})` : base;
-    });
-
-    // For rendering: group consecutive columns that share the same group
-    // label and all have their own sub-label into one colspan cell (with
-    // a sub-label row beneath); columns with no sub-label become a single
-    // cell spanning both header rows, matching the sheet's own merges.
-    let headerGroups = null;
-    if(subHeaderRaw){
-      headerGroups = [];
-      let col = 0;
-      while(col < groupLabelPerCol.length){
-        if(hasSub[col]){
-          let span = 1;
-          while(col + span < groupLabelPerCol.length &&
-                groupLabelPerCol[col + span] === groupLabelPerCol[col] &&
-                hasSub[col + span]) span++;
-          headerGroups.push({
-            label: groupLabelPerCol[col], span, sub: true,
-            subLabels: Array.from({ length: span }, (_, k) => String(subHeaderRaw[col + k]).trim())
-          });
-          col += span;
-        } else {
-          headerGroups.push({ label: groupLabelPerCol[col], span: 1, sub: false });
-          col += 1;
+    }
+    const header = [];
+    clusters.forEach(c => {
+      if(c.sub){
+        for(let k = 0; k < c.span; k++){
+          const subText = String(rows[subRowIdx][c.start + k] || '').trim();
+          header.push(keyFor(subText ? `${c.label} - ${subText}` : c.label));
+        }
+      } else {
+        for(let k = 0; k < c.span; k++){
+          header.push(keyFor(c.label));
         }
       }
-    }
+    });
+
+    const headerGroups = usesSubHeader
+      ? clusters.map(c => c.sub
+          ? { label: c.label, span: c.span, sub: true,
+              subLabels: Array.from({ length: c.span }, (_, k) => String(rows[subRowIdx][c.start + k] || '').trim()) }
+          : { label: c.label, span: c.span, sub: false })
+      : null;
 
     const dataRows = [];
     while(i < n){
@@ -491,11 +548,8 @@ function detectTables(rows){
   return found
     .filter(t => !(t.rows.length === 0 && t.header.filter(h => !h.startsWith('Column ')).length <= 1))
     .map(t => {
-      // Skip column-pruning for compound-header tables — it was designed
-      // to drop unused padding columns, but reworking it to also keep a
-      // headerGroups structure in sync isn't worth the risk of misaligning
-      // a merged header; these tables' column count already matches their
-      // real header rows exactly.
+      // Skip column-pruning for compound-header tables — their column
+      // count is already exact, straight from real merge data.
       if(t.headerGroups) return t;
       const pruned = pruneEmptyColumns(t.header, t.rows);
       return { label: t.label, header: pruned.header, headerGroups: null, rows: pruned.rows };
@@ -622,9 +676,9 @@ function selectCategory(cat){
   landingEl.categoryPanel.innerHTML = `<div class="loading-msg">Loading tables from "${escapeHtml(cat.name)}"…</div>`;
 
   fetchSheetGrid(cat.name)
-    .then(({ rows: grid }) => {
+    .then(({ rows: grid, merges }) => {
       if(activeCategoryName !== cat.name) return; // user switched categories while this was loading
-      const tables = detectTables(grid);
+      const tables = detectTables(grid, merges);
       if(tables.length === 0){
         landingEl.categoryPanel.innerHTML = `<div class="empty-msg">No tables found in the "${escapeHtml(cat.name)}" tab yet.</div>`;
         return;
@@ -710,9 +764,9 @@ function fetchFocusedData(){
   el.refreshBtn.innerHTML = '<span class="icon-spin" style="display:inline-block;">↻</span> Refresh';
 
   fetchSheetGrid(focusedTab)
-    .then(({ rows: grid, lastModified }) => {
+    .then(({ rows: grid, merges, lastModified }) => {
       sheetLastModified = lastModified ? new Date(lastModified) : null;
-      const tables = detectTables(grid);
+      const tables = detectTables(grid, merges);
       const match = tables.find(t => t.label === focusedTable) ||
                     tables.find(t => t.label.toUpperCase() === focusedTable.toUpperCase());
       if(!match){
@@ -851,6 +905,7 @@ function renderTable(view){
         th.textContent = g.label;
       } else {
         th.rowSpan = 2;
+        if(g.span > 1) th.colSpan = g.span;
         const btn = document.createElement('button');
         const globalIdx = leafIdx;
         const arrow = sortState.col === globalIdx ? (sortState.dir === 1 ? '▲' : '▼') : '';
