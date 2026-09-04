@@ -374,18 +374,25 @@ function nonEmptyCount(row){
    blank row between them. A new table starts wherever we see either:
    (a) a blank row, then a header row, optionally preceded by a short
        title row, or
-   (b) a short "title" row (≤2 filled cells) immediately followed by a
-       proper header row (≥4 filled cells), even with no blank row
-       before it — this lets tables sit directly beneath one another. */
+   (b) a short "title" row (a single filled cell — typical of a merged
+       title cell spanning the table's width) immediately followed by a
+       row with more filled cells than the title row itself (the real
+       header row), even with no blank row before it — this lets tables
+       sit directly beneath one another and works for tables as narrow
+       as 2 columns, not just wide ones. */
 function detectTables(rows){
   const found = [];
   let i = 0;
   const n = rows.length;
 
   function looksLikeTitleThenHeader(idx){
-    return nonEmptyCount(rows[idx]) <= 2 &&
-           idx + 1 < n && !isRowBlank(rows[idx + 1]) &&
-           nonEmptyCount(rows[idx + 1]) >= 4;
+    const titleCount = nonEmptyCount(rows[idx]);
+    if(titleCount < 1 || titleCount > 2) return false;
+    let headerIdx = idx + 1;
+    if(headerIdx < n && isRowBlank(rows[headerIdx])) headerIdx++; // allow one blank line between title and header
+    if(headerIdx >= n || isRowBlank(rows[headerIdx])) return false;
+    const headerCount = nonEmptyCount(rows[headerIdx]);
+    return headerCount >= 2 && headerCount > titleCount;
   }
 
   while(i < n){
@@ -396,6 +403,7 @@ function detectTables(rows){
     if(looksLikeTitleThenHeader(i)){
       label = (rows[i].find(c => String(c || '').trim() !== '') || '').toString().trim();
       i++;
+      if(i < n && isRowBlank(rows[i])) i++; // skip the blank line between title and header, if present
     }
     if(i >= n) break;
 
@@ -405,7 +413,7 @@ function detectTables(rows){
     const dataRows = [];
     while(i < n){
       if(isRowBlank(rows[i])){ i++; break; }
-      if(header.length >= 4 && looksLikeTitleThenHeader(i)) break;
+      if(header.length >= 2 && looksLikeTitleThenHeader(i)) break;
       if(nonEmptyCount(rows[i]) > 0) dataRows.push(rows[i]);
       i++;
     }
