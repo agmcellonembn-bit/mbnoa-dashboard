@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-<title>Sheet Console — Live Dashboard</title>
+<title>Integrated Dashboard of MBN OA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0B0F12;
@@ -30,7 +30,55 @@
   }
   ::selection{ background:var(--accent-dim); color:var(--accent); }
 
-  /* ---------- Top bar ---------- */
+  /* ================= LANDING (drill-down nav) ================= */
+  #landing{ max-width:960px; margin:56px auto; padding:0 20px 60px; }
+  .title-bar{
+    display:block; width:100%; background:#1230D8; border:3px solid #0B1F8C;
+    color:#FFFFFF; font-family:'Inter',sans-serif; font-weight:700; font-size:20px;
+    text-transform:uppercase; letter-spacing:.03em; text-align:center;
+    padding:16px 20px; cursor:pointer; border-radius:0;
+  }
+  .title-bar:hover{ filter:brightness(1.08); }
+  .title-bar:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  .category-row{
+    display:none; border:3px solid #0B1F8C; border-top:none;
+  }
+  .category-row.open{ display:flex; }
+  .category-btn{
+    all:unset; box-sizing:border-box; flex:1; min-width:0; padding:24px 10px; text-align:center;
+    color:#FFFFFF; font-family:'Inter',sans-serif; font-weight:700; font-size:15px;
+    border-right:2px solid rgba(0,0,0,.28); cursor:pointer; word-break:break-word;
+  }
+  .category-btn:last-child{ border-right:none; }
+  .category-btn:hover{ filter:brightness(1.1); }
+  .category-btn.active{ box-shadow:inset 0 0 0 3px rgba(255,255,255,.85); }
+  .category-btn:focus-visible{ outline:2px solid #fff; outline-offset:-4px; }
+
+  .category-panel{
+    display:none; border:3px solid #0B1F8C; border-top:none; background:#0B0B0B;
+  }
+  .category-panel.open{ display:block; }
+  .table-list{ list-style:none; margin:0; padding:0; }
+  .table-list li{ border-bottom:1px solid rgba(255,255,255,.15); }
+  .table-list li:last-child{ border-bottom:none; }
+  .table-list li button{
+    all:unset; cursor:pointer; display:block; width:100%; box-sizing:border-box;
+    padding:13px 18px; color:#FFFFFF; font-family:'Inter',sans-serif; font-size:14.5px;
+  }
+  .table-list li button:hover{ background:rgba(255,255,255,.08); color:#CFE8FB; }
+  .category-panel .empty-msg, .category-panel .loading-msg, .category-panel .error-msg{
+    padding:16px 18px; color:var(--muted); font-size:13.5px; font-family:'Inter',sans-serif;
+  }
+  .category-panel .error-msg{ color:#FF8A80; }
+
+  @media (max-width: 640px){
+    .category-row{ flex-direction:column; }
+    .category-btn{ border-right:none; border-bottom:2px solid rgba(0,0,0,.28); }
+    .category-btn:last-child{ border-bottom:none; }
+  }
+
+  /* ================= FOCUSED TABLE VIEW ================= */
   header{
     position:sticky; top:0; z-index:20;
     background:rgba(11,15,18,0.92);
@@ -43,6 +91,11 @@
     flex-wrap:wrap;
   }
   .brand{ display:flex; align-items:baseline; gap:10px; }
+  .back-link{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted);
+    text-decoration:none; letter-spacing:.05em;
+  }
+  .back-link:hover{ color:var(--accent); }
   .brand .eyebrow{
     font-family:'JetBrains Mono',monospace;
     font-size:11px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase;
@@ -74,9 +127,7 @@
   .controls{
     display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;
   }
-  .search-wrap{
-    position:relative; flex:1 1 220px; min-width:160px;
-  }
+  .search-wrap{ position:relative; flex:1 1 220px; min-width:160px; }
   .search-wrap input{
     width:100%; background:var(--panel); border:1px solid var(--line);
     color:var(--text); border-radius:var(--radius); padding:9px 12px 9px 30px;
@@ -97,24 +148,9 @@
   }
   button.btn.primary{ background:var(--accent); color:#062017; border-color:var(--accent); }
   button.btn.primary:hover{ color:#062017; opacity:.9; }
-  /* Table-name tabs: stacked one below another, dark blue background,
-     bold white text. The active tab keeps the same colors and is marked
-     with an accent-colored ring so it's still clearly distinguishable. */
-  #tabRow{ flex-direction:column; align-items:stretch; gap:6px; }
-  button.btn.tab{
-    font-weight:700; justify-content:flex-start; text-align:left;
-    background:#0B2E6B; color:#FFFFFF; border-color:#0B2E6B;
-  }
-  button.btn.tab:hover{ background:#123B85; border-color:#123B85; color:#FFFFFF; }
-  button.btn.tab.active{
-    background:#0B2E6B; color:#FFFFFF; border-color:var(--accent);
-    box-shadow:inset 0 0 0 2px var(--accent);
-  }
-  button.btn.tab.active:hover{ background:#123B85; color:#FFFFFF; }
   .icon-spin{ animation:spin 0.9s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
-  /* ---------- Main ---------- */
   main{ padding:18px; max-width:1400px; margin:0 auto; }
 
   .meta-row{
@@ -134,73 +170,46 @@
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     flex-wrap:wrap; margin-bottom:10px;
   }
-  .updated-label{
-    font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted);
-  }
+  .updated-label{ font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted); }
   .updated-label b{ color:var(--accent); font-weight:600; }
   .toolbar-actions{ display:flex; gap:8px; }
   button.btn.small{ padding:7px 12px; font-size:12px; }
 
-  /* ---------- Table (desktop) ---------- */
+  /* ---------- Table (desktop) — black/white bordered style ---------- */
   .table-wrap{
-    background:#CFE8FB; border:2px solid #000; border-radius:var(--radius);
+    background:#0B0B0B; border:1px solid rgba(255,255,255,.55); border-radius:0;
     overflow:auto;
   }
-  table{ width:100%; border-collapse:collapse; font-size:12.5px; table-layout:auto; }
+  table{ width:100%; border-collapse:collapse; font-size:15px; table-layout:auto; }
+  #titleCell{
+    text-align:center; padding:16px 12px; border:1px solid rgba(255,255,255,.4);
+    font-family:'Inter',sans-serif; font-weight:600; font-size:22px;
+    color:#FFFFFF; text-transform:uppercase; letter-spacing:.02em;
+    background:#0B0B0B;
+  }
   thead th{
-    position:sticky; top:0; background:#B7DBF7;
-    text-align:left; padding:0; border:2px solid #000;
-    font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.03em;
-    color:#000; text-transform:uppercase;
+    position:sticky; top:0; background:#0B0B0B;
+    text-align:center; padding:0; border:1px solid rgba(255,255,255,.4);
+    font-family:'Inter',sans-serif; font-size:16px; font-weight:500;
+    color:#FFFFFF; text-transform:none;
     white-space:normal; word-break:normal; overflow-wrap:break-word;
-    vertical-align:bottom; max-width:140px;
+    vertical-align:middle;
   }
   thead th button{
-    all:unset; cursor:pointer; display:flex; align-items:flex-end; gap:5px;
-    padding:8px 8px; width:100%; box-sizing:border-box; line-height:1.25; color:#000;
+    all:unset; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px;
+    padding:12px 8px; width:100%; box-sizing:border-box; line-height:1.25; color:#FFFFFF;
   }
-  thead th button:hover{ color:#0B4C8C; }
-  thead th .arrow{ font-size:9px; opacity:.7; flex:none; }
+  thead th button:hover{ color:#CFE8FB; }
+  thead th .arrow{ font-size:11px; opacity:.7; flex:none; }
   tbody td{
-    padding:7px 8px; border:2px solid #000;
-    color:#000; font-variant-numeric:tabular-nums;
-    white-space:pre-line; overflow-wrap:break-word; max-width:220px;
+    padding:10px 16px; border:1px solid rgba(255,255,255,.4);
+    color:#FFFFFF; font-variant-numeric:tabular-nums;
+    text-align:left; font-weight:400;
+    white-space:pre-line; overflow-wrap:break-word;
   }
-  tbody tr:last-child td{ border:2px solid #000; }
-  tbody tr:hover{ background:#BEE0FA; }
-  td.num, th.num button{ font-family:'JetBrains Mono',monospace; }
+  tbody tr:hover{ background:rgba(255,255,255,.05); }
   td.metric-good{ background:#1B5E20 !important; color:#FFFFFF; font-weight:700; }
   td.metric-bad{ background:#B71C1C !important; color:#FFFFFF; font-weight:700; }
-
-  /* Dark-blue header override for specific tables (see DARK_HEADER_TABLE_MATCHES in JS) */
-  .table-wrap.header-dark thead th{ background:#0B2E6B; color:#FFFFFF; }
-  .table-wrap.header-dark thead th button{ color:#FFFFFF; }
-  .table-wrap.header-dark thead th button:hover{ color:#BFD7FF; }
-
-  /* Center-aligned, content-width columns for specific tables (see
-     CENTERED_FIT_TABLE_MATCHES in JS). Dropping the wrap/max-width rules
-     lets table-layout:auto size each column to its own widest cell
-     instead of every column sharing the same fixed width. */
-  .table-wrap.centered-fit thead th{
-    text-align:center; vertical-align:middle;
-    white-space:nowrap; max-width:none;
-  }
-  .table-wrap.centered-fit thead th button{ justify-content:center; align-items:center; }
-  .table-wrap.centered-fit tbody td{
-    text-align:center; vertical-align:middle;
-    white-space:nowrap; max-width:none;
-  }
-
-  /* Center all columns except the first one, for every table. */
-  thead th:not(:first-child){
-    text-align:center;
-  }
-  thead th:not(:first-child) button{
-    justify-content:center; align-items:center;
-  }
-  tbody td:not(:first-child){
-    text-align:center;
-  }
 
   .flash{ animation:flashcell 1.4s ease; }
   @keyframes flashcell{
@@ -211,29 +220,20 @@
   /* ---------- Mobile cards ---------- */
   .cards{ display:none; flex-direction:column; gap:10px; }
   .card{
-    background:#CFE8FB; border:2px solid #000; border-left:4px solid #000;
-    border-radius:var(--radius); padding:12px 14px;
+    background:#0B0B0B; border:1px solid rgba(255,255,255,.55);
+    border-radius:0; padding:12px 14px;
   }
   .card .field{
     display:flex; justify-content:space-between; gap:10px; padding:5px 4px;
-    border-bottom:1px solid #000; font-size:13px; color:#000;
+    border-bottom:1px solid rgba(255,255,255,.3); font-size:13px; color:#FFFFFF;
   }
   .card .field:last-child{ border-bottom:none; }
-  .card .field .k{ color:#0B3A5C; font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
-  .card .field .v{ text-align:right; font-weight:500; color:#000; white-space:pre-line; }
+  .card .field .k{ color:#CFE8FB; font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  .card .field .v{ text-align:right; font-weight:500; color:#FFFFFF; white-space:pre-line; }
   .card .field.metric-good{ background:#1B5E20; border-radius:6px; }
   .card .field.metric-good .k, .card .field.metric-good .v{ color:#FFFFFF; font-weight:700; }
   .card .field.metric-bad{ background:#B71C1C; border-radius:6px; }
   .card .field.metric-bad .k, .card .field.metric-bad .v{ color:#FFFFFF; font-weight:700; }
-
-  /* Centered mobile card layout for specific tables (see
-     CENTERED_FIT_TABLE_MATCHES in JS) — label stacked above value, both
-     centered, instead of the default label-left/value-right row. Reads
-     better on a phone for a table with many columns. */
-  .cards.centered-fit .field{
-    flex-direction:column; align-items:center; text-align:center; gap:3px;
-  }
-  .cards.centered-fit .field .v{ text-align:center; }
 
   @media (max-width: 720px){
     h1{ font-size:17px; }
@@ -241,70 +241,72 @@
     .table-wrap{ display:none; }
     .cards{ display:flex; }
   }
-
-  footer{
-    text-align:center; padding:24px 16px 40px; color:var(--muted);
-    font-family:'JetBrains Mono',monospace; font-size:11px;
-  }
-  footer a{ color:var(--accent); text-decoration:none; }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-row">
-    <div class="brand">
-      <div>
-        <div class="eyebrow">Live · Google Sheet</div>
-        <h1 id="sheetTitle">Sheet Console</h1>
+<!-- ================= LANDING PAGE ================= -->
+<div id="landing">
+  <button type="button" class="title-bar" id="titleBar">INTEGRATED DASHBOARD OF MBN OA</button>
+  <div class="category-row" id="categoryRow"></div>
+  <div class="category-panel" id="categoryPanel"></div>
+</div>
+
+<!-- ================= FOCUSED SINGLE-TABLE VIEW ================= -->
+<div id="focusedView" style="display:none;">
+  <header>
+    <div class="header-row">
+      <div class="brand">
+        <div>
+          <div class="eyebrow"><a class="back-link" href="./index.html">← All dashboards</a> · Live · Google Sheet</div>
+          <h1 id="sheetTitle">Table</h1>
+        </div>
+      </div>
+      <div class="sync-status">
+        <span class="pulse-dot" id="pulseDot"></span>
+        <span id="syncLabel">connecting…</span>
       </div>
     </div>
-    <div class="sync-status">
-      <span class="pulse-dot" id="pulseDot"></span>
-      <span id="syncLabel">connecting…</span>
+    <div class="controls">
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="searchInput" type="text" placeholder="Filter rows…" autocomplete="off">
+      </div>
+      <button class="btn primary" id="refreshBtn">↻ Refresh</button>
+      <button class="btn" id="autoBtn">Auto: Off</button>
     </div>
-  </div>
-  <div class="controls" id="tabRow"></div>
-  <div class="controls">
-    <div class="search-wrap">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="searchInput" type="text" placeholder="Filter rows…" autocomplete="off">
+  </header>
+
+  <main>
+    <div class="meta-row">
+      <span>Rows: <b id="rowCount">–</b></span>
+      <span>Last synced: <b id="lastSynced">–</b></span>
+      <span>Next refresh: <b id="nextRefresh">–</b></span>
     </div>
-    <button class="btn primary" id="refreshBtn">↻ Refresh</button>
-    <button class="btn" id="autoBtn">Auto: Off</button>
-  </div>
-</header>
 
-<main>
-  <div class="meta-row">
-    <span>Rows: <b id="rowCount">–</b></span>
-    <span>Last synced: <b id="lastSynced">–</b></span>
-    <span>Next refresh: <b id="nextRefresh">–</b></span>
-  </div>
+    <div id="stateBox" class="state-box">Loading data…</div>
 
-  <div id="stateBox" class="state-box">Loading data…</div>
-
-  <div class="table-toolbar" id="tableToolbar" style="display:none;">
-    <span class="updated-label" id="updatedLabel">–</span>
-    <div class="toolbar-actions">
-      <button class="btn small" id="exportCsvBtn">⬇ CSV</button>
-      <button class="btn small" id="exportXlsxBtn">⬇ Excel</button>
+    <div class="table-toolbar" id="tableToolbar" style="display:none;">
+      <span class="updated-label" id="updatedLabel">–</span>
+      <div class="toolbar-actions">
+        <button class="btn small" id="exportCsvBtn">⬇ CSV</button>
+        <button class="btn small" id="exportXlsxBtn">⬇ Excel</button>
+      </div>
     </div>
-  </div>
 
-  <div class="table-wrap" id="tableWrap" style="display:none;">
-    <table id="dataTable">
-      <thead><tr id="headRow"></tr></thead>
-      <tbody id="bodyRows"></tbody>
-    </table>
-  </div>
+    <div class="table-wrap" id="tableWrap" style="display:none;">
+      <table id="dataTable">
+        <thead>
+          <tr id="titleRow"><th id="titleCell"></th></tr>
+          <tr id="headRow"></tr>
+        </thead>
+        <tbody id="bodyRows"></tbody>
+      </table>
+    </div>
 
-  <div class="cards" id="cardsWrap"></div>
-</main>
-
-<footer>
-  Built as a static page — edit <code>CONFIG</code> in this file to point at your own sheet.
-</footer>
+    <div class="cards" id="cardsWrap"></div>
+  </main>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -315,44 +317,43 @@
       link" set to Viewer (no need to "publish to web").
    2. Copy the Sheet ID from the URL:
       docs.google.com/spreadsheets/d/<SHEET_ID>/edit#gid=<GID>
-   3. Paste SHEET_ID below. List every tab (gid) you want scanned
-      in GIDS — usually just the one tab your tables live on.
+   3. Paste SHEET_ID below. CATEGORIES lists each top-level button
+      shown on the landing page — "name" MUST exactly match a real
+      tab name in your Google Sheet (case/spacing matters), and
+      "color" is that button's background color.
 
-   You do NOT need to list individual tables or ranges. Every time
-   this page loads, it re-scans the listed tab(s) and automatically
-   finds every table on them (a table = a header row followed by
-   data rows, with a title row and/or blank rows around it). Add,
-   remove, or resize tables in the sheet and the dashboard picks
-   them up on the next refresh — no code changes needed.
+   Each tab can hold MULTIPLE tables — a table is auto-detected as
+   an optional short title row, followed by a header row (≥4 filled
+   cells), followed by its data rows, ending at a blank row or the
+   start of the next table. Clicking a category on the landing page
+   re-scans that tab and lists every table found on it. Clicking a
+   table opens it in a new window/tab as its own live mini-dashboard
+   (search, sort, refresh, auto-refresh, CSV/Excel export all work
+   there, scoped to just that one table).
    ============================================================ */
 const CONFIG = {
   SHEET_ID: "1R6cRutGOC_CQTbCwetZYEYnfwmbedCAwcevORYCxz8M",
-  TITLE: "Comprehensive Dashboard",
+  TITLE: "INTEGRATED DASHBOARD OF MBN OA",
   AUTO_REFRESH_SECONDS: 60,
-  GIDS: ["0"] // add more tab gids here, e.g. ["0", "123456789"], if tables live on multiple tabs
+  CATEGORIES: [
+    { name: "CFA",          color: "#2E9E7C" },
+    { name: "CM",           color: "#17C4E6" },
+    { name: "EB/LC",        color: "#FF7A1A" },
+    { name: "FINANCE",      color: "#FF22FF" },
+    { name: "OVER ALL NWA", color: "#7A1E78" }
+  ]
 };
 
-let tables = [];       // [{ label, header:[], rows:[[...]] }, ...] detected fresh on every fetch
-let activeLabel = null;
-let sheetLastModified = null; // Date the sheet was last edited, from the server's Last-Modified header (if available)
+/* ---------------- Shared sheet-fetching + table-detection ---------------- */
 
-// Reads the table name a tab click asked this window to open (see
-// renderTabs()), passed via the URL hash so a plain new-tab/new-window
-// open lands on the right table instead of always defaulting to the first.
-function getHashTableLabel(){
-  const raw = location.hash.replace(/^#/, '');
-  if(!raw) return null;
-  try{ return decodeURIComponent(raw); } catch(e){ return raw; }
+function buildSheetCsvUrl(sheetName){
+  return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&_=${Date.now()}`;
 }
 
-function buildCsvUrl(gid){
-  return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/export?format=csv&gid=${gid}&_=${Date.now()}`;
-}
-
-function fetchGidRaw(gid){
-  return fetch(buildCsvUrl(gid), { cache: 'no-store' })
+function fetchSheetGrid(sheetName){
+  return fetch(buildSheetCsvUrl(sheetName), { cache: 'no-store' })
     .then(res => {
-      if(!res.ok) throw new Error(`HTTP ${res.status} loading sheet`);
+      if(!res.ok) throw new Error(`HTTP ${res.status} loading "${sheetName}" tab`);
       const lastModified = res.headers.get('last-modified');
       return res.text().then(text => ({ text, lastModified }));
     })
@@ -375,14 +376,7 @@ function nonEmptyCount(row){
        title row, or
    (b) a short "title" row (≤2 filled cells) immediately followed by a
        proper header row (≥4 filled cells), even with no blank row
-       before it — this lets tables sit directly beneath one another.
-   Each table's tab label comes from its own title row (or "Table N" if
-   there isn't one) — NOT from any separate menu/link list elsewhere in
-   the sheet. (Earlier versions tried to read a stacked multi-hyperlink
-   cell as a menu, but a single cell containing several hyperlinks with
-   internal line breaks doesn't export to CSV cleanly and corrupted the
-   row/column structure — if you want a link list, keep one label per
-   row/cell rather than stacking several inside one cell.) */
+       before it — this lets tables sit directly beneath one another. */
 function detectTables(rows){
   const found = [];
   let i = 0;
@@ -411,7 +405,7 @@ function detectTables(rows){
     const dataRows = [];
     while(i < n){
       if(isRowBlank(rows[i])){ i++; break; }
-      if(header.length >= 4 && looksLikeTitleThenHeader(i)) break; // next table starts here, no blank row needed
+      if(header.length >= 4 && looksLikeTitleThenHeader(i)) break;
       if(nonEmptyCount(rows[i]) > 0) dataRows.push(rows[i]);
       i++;
     }
@@ -419,9 +413,6 @@ function detectTables(rows){
     found.push({ label: label || `Table ${found.length + 1}`, header, rows: dataRows });
   }
 
-  // Drop junk entries: a "table" with no data rows and at most one real
-  // (non-generic) column name is very likely leftover front matter — like
-  // a stray cell — rather than an actual table you're building.
   return found
     .filter(t => !(t.rows.length === 0 && t.header.filter(h => !h.startsWith('Column ')).length <= 1))
     .map(t => {
@@ -430,19 +421,6 @@ function detectTables(rows){
     });
 }
 
-function rowsToObjects(header, dataRows){
-  return dataRows.map(r => {
-    const obj = {};
-    header.forEach((h, i) => obj[h] = r[i] !== undefined ? r[i] : '');
-    return obj;
-  });
-}
-
-/* Removes columns that are completely blank across the whole table (no
-   header text and no data in any row). Google's CSV export pads every
-   row out to the widest used column anywhere on the sheet, so a table
-   with 8 real columns can come back with several extra blank ones —
-   this trims those back out. */
 function pruneEmptyColumns(header, dataRows){
   const width = header.length;
   const hasContent = new Array(width).fill(false);
@@ -460,13 +438,165 @@ function pruneEmptyColumns(header, dataRows){
   };
 }
 
+function rowsToObjects(header, dataRows){
+  return dataRows.map(r => {
+    const obj = {};
+    header.forEach((h, i) => obj[h] = r[i] !== undefined ? r[i] : '');
+    return obj;
+  });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function isNumeric(v){
+  if(v===''||v===null||v===undefined) return false;
+  return !isNaN(parseNumber(v));
+}
+function parseNumber(v){
+  if(v===''||v===null||v===undefined) return NaN;
+  const cleaned = String(v).replace(/[,%\s]/g,'').trim();
+  if(cleaned==='') return NaN;
+  return parseFloat(cleaned);
+}
+
+/* Conditional cell-coloring rules. Each rule matches cells by column name
+   (columnMatch: case-insensitive substring) and returns a CSS class name
+   ('metric-good' = dark green, 'metric-bad' = red) for a given cell value,
+   or null to leave it uncolored. Empty by default — add rules here to
+   color specific columns by whatever thresholds matter to you. */
+const CONDITIONAL_RULES = [
+  // Example:
+  // { columnMatch: "AVAIL", classify: v => (isNumeric(v) && parseNumber(v) < 98) ? 'metric-bad' : 'metric-good' }
+];
+
+function classifyCell(colName, value){
+  for(const rule of CONDITIONAL_RULES){
+    if(rule.columnMatch && !String(colName).toUpperCase().includes(rule.columnMatch.toUpperCase())) continue;
+    const cls = rule.classify(value);
+    if(cls) return cls;
+  }
+  return null;
+}
+
+/* ============================================================
+   LANDING PAGE — title bar → colored category buttons → dropdown
+   list of tables detected in that tab → opens table in new window
+   ============================================================ */
+
+const landingEl = {
+  landing: document.getElementById('landing'),
+  titleBar: document.getElementById('titleBar'),
+  categoryRow: document.getElementById('categoryRow'),
+  categoryPanel: document.getElementById('categoryPanel'),
+};
+
+let activeCategoryName = null;
+
+function buildCategoryRow(){
+  landingEl.categoryRow.innerHTML = '';
+  CONFIG.CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'category-btn';
+    btn.style.background = cat.color;
+    btn.textContent = cat.name;
+    btn.dataset.name = cat.name;
+    btn.addEventListener('click', () => selectCategory(cat));
+    landingEl.categoryRow.appendChild(btn);
+  });
+}
+buildCategoryRow();
+landingEl.titleBar.textContent = CONFIG.TITLE;
+
+landingEl.titleBar.addEventListener('click', () => {
+  const nowOpen = !landingEl.categoryRow.classList.contains('open');
+  landingEl.categoryRow.classList.toggle('open', nowOpen);
+  if(!nowOpen){
+    closeCategoryPanel();
+  }
+});
+
+function closeCategoryPanel(){
+  landingEl.categoryPanel.classList.remove('open');
+  landingEl.categoryPanel.innerHTML = '';
+  activeCategoryName = null;
+  [...landingEl.categoryRow.children].forEach(b => b.classList.remove('active'));
+}
+
+function setActiveCategoryButton(name){
+  [...landingEl.categoryRow.children].forEach(b => {
+    b.classList.toggle('active', b.dataset.name === name);
+  });
+}
+
+function selectCategory(cat){
+  if(activeCategoryName === cat.name){
+    closeCategoryPanel();
+    return;
+  }
+  activeCategoryName = cat.name;
+  setActiveCategoryButton(cat.name);
+  landingEl.categoryPanel.classList.add('open');
+  landingEl.categoryPanel.innerHTML = `<div class="loading-msg">Loading tables from "${escapeHtml(cat.name)}"…</div>`;
+
+  fetchSheetGrid(cat.name)
+    .then(({ rows: grid }) => {
+      if(activeCategoryName !== cat.name) return; // user switched categories while this was loading
+      const tables = detectTables(grid);
+      if(tables.length === 0){
+        landingEl.categoryPanel.innerHTML = `<div class="empty-msg">No tables found in the "${escapeHtml(cat.name)}" tab yet.</div>`;
+        return;
+      }
+      const list = document.createElement('ul');
+      list.className = 'table-list';
+      tables.forEach(t => {
+        const li = document.createElement('li');
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = t.label;
+        b.addEventListener('click', () => {
+          const url = new URL(window.location.href);
+          url.search = `tab=${encodeURIComponent(cat.name)}&table=${encodeURIComponent(t.label)}`;
+          url.hash = '';
+          window.open(url.toString(), '_blank', 'noopener');
+        });
+        li.appendChild(b);
+        list.appendChild(li);
+      });
+      landingEl.categoryPanel.innerHTML = '';
+      landingEl.categoryPanel.appendChild(list);
+    })
+    .catch(err => {
+      if(activeCategoryName !== cat.name) return;
+      landingEl.categoryPanel.innerHTML = `<div class="error-msg">Could not load the "${escapeHtml(cat.name)}" tab: ${escapeHtml(err.message || 'Unknown error')}</div>`;
+    });
+}
+
+/* ============================================================
+   FOCUSED VIEW — a single table, opened in its own window, with
+   the full search/sort/refresh/auto-refresh/export dashboard.
+   ============================================================ */
+
+const params = new URLSearchParams(location.search);
+const focusedTab = params.get('tab');
+const focusedTable = params.get('table');
+const isFocusedView = !!(focusedTab && focusedTable);
+
+if(isFocusedView){
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('focusedView').style.display = 'block';
+} else {
+  document.getElementById('focusedView').style.display = 'none';
+}
+
 let columns = [];
 let rows = [];
-let previousRows = null;
 let sortState = { col: null, dir: 1 };
 let autoTimer = null;
 let countdownTimer = null;
 let secondsLeft = 0;
+let sheetLastModified = null;
 
 const el = {
   title: document.getElementById('sheetTitle'),
@@ -477,6 +607,7 @@ const el = {
   nextRefresh: document.getElementById('nextRefresh'),
   stateBox: document.getElementById('stateBox'),
   tableWrap: document.getElementById('tableWrap'),
+  titleCell: document.getElementById('titleCell'),
   headRow: document.getElementById('headRow'),
   bodyRows: document.getElementById('bodyRows'),
   cardsWrap: document.getElementById('cardsWrap'),
@@ -489,177 +620,36 @@ const el = {
   exportXlsxBtn: document.getElementById('exportXlsxBtn'),
 };
 
-el.title.textContent = CONFIG.TITLE;
-
-const tabRow = document.getElementById('tabRow');
-// This window was opened by clicking a table tab (see renderTabs' click
-// handler below), so it's a focused single-table view: hide the tab list
-// entirely and just show that one table.
-const IS_FOCUSED_VIEW = !!getHashTableLabel();
-function renderTabs(){
-  tabRow.innerHTML = '';
-  if(IS_FOCUSED_VIEW) return; // single-table view: no tab list here
-  if(tables.length < 2) return; // no tabs needed for a single table
-  tables.forEach((t,idx)=>{
-    const btn = document.createElement('button');
-    btn.className = 'btn tab' + (t.label === activeLabel ? ' active' : '');
-    btn.textContent = `${idx + 1}. ${t.label}`;
-    btn.title = 'Opens this table in a new window';
-    btn.addEventListener('click', ()=>{
-      const url = new URL(window.location.href);
-      url.hash = encodeURIComponent(t.label);
-      window.open(url.toString(), '_blank', 'noopener');
-    });
-    tabRow.appendChild(btn);
-  });
-}
-
-/* Tables whose header row should render dark-blue-with-white-text instead
-   of the default light-blue-with-black-text (case-insensitive substring
-   match on the tab label). Add more strings here to darken other tables'
-   headers in future. */
-const DARK_HEADER_TABLE_MATCHES = [
-  "Bharat Fiber-BB Gross/DISC/ NET Achievement"
-];
-
-function tableWantsDarkHeader(){
-  const label = String(activeLabel || '').toUpperCase();
-  return DARK_HEADER_TABLE_MATCHES.some(m => label.includes(m.toUpperCase()));
-}
-
-/* Tables that should render with centered cell/header text and columns
-   sized to fit their own content (desktop table) plus a centered,
-   stacked label/value layout (mobile cards), instead of the default
-   left-aligned, fixed-width layout. Add more strings here to apply the
-   same treatment to other tables in future. */
-const CENTERED_FIT_TABLE_MATCHES = [
-  "Bharat Fiber-BB Gross/DISC/ NET Achievement"
-];
-
-function tableWantsCenteredFit(){
-  const label = String(activeLabel || '').toUpperCase();
-  return CENTERED_FIT_TABLE_MATCHES.some(m => label.includes(m.toUpperCase()));
-}
-
-/* Conditional cell-coloring rules. Each rule matches cells either by
-   column name (columnMatch: case-insensitive substring) or by fixed
-   column position (columnIndex: 0-based, i.e. 8 = the 9th column),
-   optionally only within a specific table (tableMatch: case-insensitive
-   substring match on the tab label), and returns a CSS class name
-   ('metric-good' = dark green, 'metric-bad' = red) for a given cell
-   value, or null to leave it uncolored. Add more rules here the same way
-   to color other columns in future. */
-const CONDITIONAL_RULES = [
-  {
-    // "% OF NODES WITH MORE THAN 98% NWA" column, any table: dark green if > 85
-    tableMatch: null,
-    columnMatch: "% OF NODES WITH MORE THAN 98% NWA",
-    classify: v => (isNumeric(v) && parseNumber(v) > 85) ? 'metric-good' : null
-  },
-  {
-    // "Avail." column, only in the "NWA OF DBN SITES" table: red if < 98, green otherwise
-    tableMatch: "NWA OF DBN SITES",
-    columnMatch: "AVAIL",
-    classify: v => {
-      if(!isNumeric(v)) return null;
-      return parseNumber(v) < 98 ? 'metric-bad' : 'metric-good';
-    }
-  },
-  {
-    // Column 9 (0-based index 8), only in the "...Bharat Fiber-BB Gross/DISC/
-    // NET Achievement..." table: red if negative, green otherwise
-    tableMatch: "Bharat Fiber-BB Gross/DISC/ NET Achievement",
-    columnIndex: 8,
-    classify: v => {
-      if(!isNumeric(v)) return null;
-      return parseNumber(v) < 0 ? 'metric-bad' : 'metric-good';
-    }
-  }
-];
-
-function classifyCell(colName, value, colIndex){
-  for(const rule of CONDITIONAL_RULES){
-    if(rule.columnMatch && !String(colName).toUpperCase().includes(rule.columnMatch.toUpperCase())) continue;
-    if(rule.columnIndex !== undefined && colIndex !== rule.columnIndex) continue;
-    if(rule.tableMatch && !String(activeLabel || '').toUpperCase().includes(rule.tableMatch.toUpperCase())) continue;
-    const cls = rule.classify(value);
-    if(cls) return cls;
-  }
-  return null;
-}
-
-function isNumeric(v){
-  if(v===''||v===null||v===undefined) return false;
-  return !isNaN(parseNumber(v));
-}
-function parseNumber(v){
-  if(v===''||v===null||v===undefined) return NaN;
-  const cleaned = String(v).replace(/[,%\s]/g,'').trim();
-  if(cleaned==='') return NaN;
-  return parseFloat(cleaned);
-}
-
-function fetchData(){
+function fetchFocusedData(){
   el.pulse.classList.add('live');
   el.pulse.classList.remove('error');
   el.syncLabel.textContent = 'syncing…';
   el.refreshBtn.innerHTML = '<span class="icon-spin" style="display:inline-block;">↻</span> Refresh';
 
-  Promise.all(CONFIG.GIDS.map(fetchGidRaw))
-    .then(results => {
-      let found = [];
-      let latestModified = null;
-      results.forEach(r => {
-        found = found.concat(detectTables(r.rows));
-        if(r.lastModified){
-          const d = new Date(r.lastModified);
-          if(!isNaN(d) && (!latestModified || d > latestModified)) latestModified = d;
-        }
-      });
-      sheetLastModified = latestModified;
-
-      if(found.length === 0){
-        handleError(new Error('No tables detected — check that the sheet has a header row followed by data rows'));
-        return;
+  fetchSheetGrid(focusedTab)
+    .then(({ rows: grid, lastModified }) => {
+      sheetLastModified = lastModified ? new Date(lastModified) : null;
+      const tables = detectTables(grid);
+      const match = tables.find(t => t.label === focusedTable) ||
+                    tables.find(t => t.label.toUpperCase() === focusedTable.toUpperCase());
+      if(!match){
+        throw new Error(`Table "${focusedTable}" was not found in the "${focusedTab}" tab anymore — it may have been renamed, moved, or removed. Go back to the dashboard and reopen it.`);
       }
+      columns = match.header;
+      rows = rowsToObjects(match.header, match.rows);
 
-      // de-duplicate identical labels across tables/tabs
-      const seen = {};
-      found.forEach(t => {
-        seen[t.label] = (seen[t.label] || 0) + 1;
-        if(seen[t.label] > 1) t.label = `${t.label} (${seen[t.label]})`;
-      });
-
-      previousRows = rows;
-      tables = found;
-      if(!activeLabel){
-        // First load in this window: honor a table requested via the URL
-        // hash (set when a tab was clicked to "open in a new window"),
-        // falling back to the first table.
-        const requested = getHashTableLabel();
-        activeLabel = (requested && tables.some(t => t.label === requested)) ? requested : tables[0].label;
-      } else if(!tables.some(t => t.label === activeLabel)){
-        activeLabel = tables[0].label;
-      }
-      applyActiveTable();
+      el.title.textContent = match.label;
+      document.title = `${match.label} — ${CONFIG.TITLE}`;
 
       el.pulse.classList.remove('live','error');
       el.syncLabel.textContent = 'connected';
       el.lastSynced.textContent = new Date().toLocaleTimeString();
-      el.stateBox.style.display = 'none';
       el.rowCount.textContent = rows.length;
 
-      renderTabs();
       renderAll();
       scheduleCountdown();
     })
     .catch(err => handleError(err));
-}
-
-function applyActiveTable(){
-  const t = tables.find(x => x.label === activeLabel) || tables[0];
-  columns = t.header;
-  rows = rowsToObjects(t.header, t.rows);
 }
 
 function handleError(err){
@@ -672,11 +662,11 @@ function handleError(err){
   const reason = (err && (err.message || err.statusText)) ? (err.message || err.statusText) : 'Unknown error';
   const isFileProtocol = location.protocol === 'file:';
   el.stateBox.innerHTML =
-    `Could not load the sheet.<br>` +
+    `Could not load the table.<br>` +
     `<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;opacity:.85;">Reason: ${escapeHtml(reason)}</span><br><br>` +
     (isFileProtocol
-      ? `You're opening this file directly (file://). Google often blocks that. Host it (GitHub Pages / Netlify / Cloudflare Pages — see README) and open the https:// link instead.`
-      : `Double-check CONFIG.SHEET_ID, the GID/range for this view, and that the sheet is shared as "Anyone with the link → Viewer".`);
+      ? `You're opening this file directly (file://). Google often blocks that. Host it (GitHub Pages / Netlify / Cloudflare Pages) and open the https:// link instead.`
+      : `Double-check CONFIG.SHEET_ID and that the sheet is shared as "Anyone with the link → Viewer".`);
   el.tableWrap.style.display = 'none';
   el.cardsWrap.innerHTML = '';
   console.error(err);
@@ -717,7 +707,7 @@ function renderAll(){
   if(rows.length === 0){
     el.stateBox.style.display = 'block';
     el.stateBox.classList.remove('error');
-    el.stateBox.textContent = 'This table has headers but no data rows yet — add rows in the sheet and hit Refresh.';
+    el.stateBox.textContent = `No data rows found in "${focusedTable}" yet — add rows in the sheet and hit Refresh.`;
   } else {
     el.stateBox.style.display = 'none';
   }
@@ -728,7 +718,7 @@ function currentViewRows(){
 }
 
 function safeFilename(){
-  return (activeLabel || 'export').replace(/[^a-z0-9\-_ ]/gi, '').trim().slice(0, 60) || 'export';
+  return String(focusedTable || 'export').replace(/[^a-z0-9\-_ ]/gi, '').trim().slice(0, 60) || 'export';
 }
 
 function downloadBlob(content, filename, mime){
@@ -758,18 +748,13 @@ function exportXlsx(){
   XLSX.writeFile(wb, `${safeFilename()}.xlsx`);
 }
 
-el.exportCsvBtn.addEventListener('click', exportCsv);
-el.exportXlsxBtn.addEventListener('click', exportXlsx);
-
 function renderTable(view){
-  el.tableWrap.classList.toggle('header-dark', tableWantsDarkHeader());
-  el.tableWrap.classList.toggle('centered-fit', tableWantsCenteredFit());
+  el.titleCell.textContent = focusedTable;
+  el.titleCell.colSpan = columns.length;
 
   el.headRow.innerHTML = '';
   columns.forEach((c,i)=>{
     const th = document.createElement('th');
-    const numeric = rows.every(r => isNumeric(r[c]) || r[c]==='');
-    if(numeric) th.classList.add('num');
     const btn = document.createElement('button');
     const arrow = sortState.col === i ? (sortState.dir === 1 ? '▲' : '▼') : '';
     btn.innerHTML = `<span>${escapeHtml(c)}</span><span class="arrow">${arrow}</span>`;
@@ -784,13 +769,10 @@ function renderTable(view){
   el.bodyRows.innerHTML = '';
   view.forEach(r=>{
     const tr = document.createElement('tr');
-    columns.forEach((c,i)=>{
+    columns.forEach((c)=>{
       const td = document.createElement('td');
-      const numeric = isNumeric(r[c]);
-      if(numeric) td.classList.add('num');
-      const cellClass = classifyCell(c, r[c], i);
+      const cellClass = classifyCell(c, r[c]);
       if(cellClass) td.classList.add(cellClass);
-
       td.textContent = r[c];
       tr.appendChild(td);
     });
@@ -799,25 +781,20 @@ function renderTable(view){
 }
 
 function renderCards(view){
-  el.cardsWrap.classList.toggle('centered-fit', tableWantsCenteredFit());
   el.cardsWrap.innerHTML = '';
   view.forEach(r=>{
     const card = document.createElement('div');
     card.className = 'card';
-    columns.forEach((c,i)=>{
+    columns.forEach((c)=>{
       const field = document.createElement('div');
       field.className = 'field';
-      const fieldClass = classifyCell(c, r[c], i);
+      const fieldClass = classifyCell(c, r[c]);
       if(fieldClass) field.classList.add(fieldClass);
       field.innerHTML = `<span class="k">${escapeHtml(c)}</span><span class="v">${escapeHtml(String(r[c]))}</span>`;
       card.appendChild(field);
     });
     el.cardsWrap.appendChild(card);
   });
-}
-
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 function scheduleCountdown(){
@@ -833,20 +810,24 @@ function scheduleCountdown(){
 }
 
 el.search.addEventListener('input', renderAll);
-el.refreshBtn.addEventListener('click', fetchData);
+el.refreshBtn.addEventListener('click', fetchFocusedData);
 el.autoBtn.addEventListener('click', ()=>{
   if(autoTimer){
     clearInterval(autoTimer); autoTimer = null; clearInterval(countdownTimer);
     el.autoBtn.textContent = 'Auto: Off';
     el.nextRefresh.textContent = '–';
   } else {
-    autoTimer = setInterval(fetchData, CONFIG.AUTO_REFRESH_SECONDS * 1000);
+    autoTimer = setInterval(fetchFocusedData, CONFIG.AUTO_REFRESH_SECONDS * 1000);
     el.autoBtn.textContent = 'Auto: On';
     scheduleCountdown();
   }
 });
+el.exportCsvBtn.addEventListener('click', exportCsv);
+el.exportXlsxBtn.addEventListener('click', exportXlsx);
 
-fetchData();
+if(isFocusedView){
+  fetchFocusedData();
+}
 </script>
 </body>
 </html>
