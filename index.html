@@ -407,16 +407,75 @@ function detectTables(rows){
     }
     if(i >= n) break;
 
+    const headerRawRow = rows[i];
+    const blankMask = headerRawRow.map(h => !(h && String(h).trim() !== ''));
     let lastHeaderText = null;
-    const seenHeaderCounts = {};
-    const header = rows[i].map((h, idx) => {
+    const groupLabelPerCol = headerRawRow.map((h, idx) => {
       const raw = (h && String(h).trim()) || '';
-      if(raw){ lastHeaderText = raw; }
-      const base = raw || lastHeaderText || `Column ${idx + 1}`;
-      seenHeaderCounts[base] = (seenHeaderCounts[base] || 0) + 1;
-      return seenHeaderCounts[base] > 1 ? `${base} (${seenHeaderCounts[base]})` : base;
+      if(raw) lastHeaderText = raw;
+      return raw || lastHeaderText || `Column ${idx + 1}`;
     });
     i++;
+
+    /* Some sheets use a compound header: a group row (e.g. "Sep-2026
+       Targets" merged across a few columns) sitting above a second row
+       that supplies the real per-column sub-labels (e.g. "Mthly",
+       "WKLY") — while columns with no grouping (like "SDCA") just have
+       their one label spanning both rows, leaving that column blank in
+       the row below. Detect that second row here: it only counts as a
+       genuine sub-header row if it mostly fills in exactly the columns
+       that were blank in the group row above (rather than, say, being
+       an ordinary data row that happens to have a couple of matching
+       gaps by coincidence). */
+    let subHeaderRaw = null;
+    if(i < n && !isRowBlank(rows[i])){
+      const candidate = rows[i];
+      let fillableBlanks = 0, filledOfThose = 0;
+      for(let j = 0; j < headerRawRow.length; j++){
+        if(blankMask[j]){
+          fillableBlanks++;
+          if(String(candidate[j] || '').trim() !== '') filledOfThose++;
+        }
+      }
+      if(fillableBlanks >= 1 && filledOfThose >= Math.ceil(fillableBlanks * 0.6)){
+        subHeaderRaw = candidate;
+        i++;
+      }
+    }
+
+    const hasSub = headerRawRow.map((_, j) => !!(subHeaderRaw && String(subHeaderRaw[j] || '').trim() !== ''));
+    const seenKeyCounts = {};
+    const header = headerRawRow.map((_, j) => {
+      const base = hasSub[j] ? `${groupLabelPerCol[j]} - ${String(subHeaderRaw[j]).trim()}` : groupLabelPerCol[j];
+      seenKeyCounts[base] = (seenKeyCounts[base] || 0) + 1;
+      return seenKeyCounts[base] > 1 ? `${base} (${seenKeyCounts[base]})` : base;
+    });
+
+    // For rendering: group consecutive columns that share the same group
+    // label and all have their own sub-label into one colspan cell (with
+    // a sub-label row beneath); columns with no sub-label become a single
+    // cell spanning both header rows, matching the sheet's own merges.
+    let headerGroups = null;
+    if(subHeaderRaw){
+      headerGroups = [];
+      let col = 0;
+      while(col < groupLabelPerCol.length){
+        if(hasSub[col]){
+          let span = 1;
+          while(col + span < groupLabelPerCol.length &&
+                groupLabelPerCol[col + span] === groupLabelPerCol[col] &&
+                hasSub[col + span]) span++;
+          headerGroups.push({
+            label: groupLabelPerCol[col], span, sub: true,
+            subLabels: Array.from({ length: span }, (_, k) => String(subHeaderRaw[col + k]).trim())
+          });
+          col += span;
+        } else {
+          headerGroups.push({ label: groupLabelPerCol[col], span: 1, sub: false });
+          col += 1;
+        }
+      }
+    }
 
     const dataRows = [];
     while(i < n){
@@ -426,14 +485,20 @@ function detectTables(rows){
       i++;
     }
 
-    found.push({ label: label || `Table ${found.length + 1}`, header, rows: dataRows });
+    found.push({ label: label || `Table ${found.length + 1}`, header, headerGroups, rows: dataRows });
   }
 
   return found
     .filter(t => !(t.rows.length === 0 && t.header.filter(h => !h.startsWith('Column ')).length <= 1))
     .map(t => {
+      // Skip column-pruning for compound-header tables — it was designed
+      // to drop unused padding columns, but reworking it to also keep a
+      // headerGroups structure in sync isn't worth the risk of misaligning
+      // a merged header; these tables' column count already matches their
+      // real header rows exactly.
+      if(t.headerGroups) return t;
       const pruned = pruneEmptyColumns(t.header, t.rows);
-      return { label: t.label, header: pruned.header, rows: pruned.rows };
+      return { label: t.label, header: pruned.header, headerGroups: null, rows: pruned.rows };
     });
 }
 
@@ -608,6 +673,7 @@ if(isFocusedView){
 
 let columns = [];
 let rows = [];
+let headerGroups = null;
 let sortState = { col: null, dir: 1 };
 let autoTimer = null;
 let countdownTimer = null;
@@ -623,6 +689,7 @@ const el = {
   nextRefresh: document.getElementById('nextRefresh'),
   stateBox: document.getElementById('stateBox'),
   tableWrap: document.getElementById('tableWrap'),
+  titleRow: document.getElementById('titleRow'),
   titleCell: document.getElementById('titleCell'),
   headRow: document.getElementById('headRow'),
   bodyRows: document.getElementById('bodyRows'),
@@ -652,6 +719,7 @@ function fetchFocusedData(){
         throw new Error(`Table "${focusedTable}" was not found in the "${focusedTab}" tab anymore — it may have been renamed, moved, or removed. Go back to the dashboard and reopen it.`);
       }
       columns = match.header;
+      headerGroups = match.headerGroups || null;
       rows = rowsToObjects(match.header, match.rows);
 
       el.title.textContent = match.label;
@@ -768,19 +836,71 @@ function renderTable(view){
   el.titleCell.textContent = focusedTable;
   el.titleCell.colSpan = columns.length;
 
+  const existingGroupRow = document.getElementById('groupHeadRow');
+  if(existingGroupRow) existingGroupRow.remove();
   el.headRow.innerHTML = '';
-  columns.forEach((c,i)=>{
-    const th = document.createElement('th');
-    const btn = document.createElement('button');
-    const arrow = sortState.col === i ? (sortState.dir === 1 ? '▲' : '▼') : '';
-    btn.innerHTML = `<span>${escapeHtml(c)}</span><span class="arrow">${arrow}</span>`;
-    btn.addEventListener('click', ()=>{
-      if(sortState.col === i){ sortState.dir *= -1; } else { sortState.col = i; sortState.dir = 1; }
-      renderAll();
+
+  if(headerGroups){
+    const groupRow = document.createElement('tr');
+    groupRow.id = 'groupHeadRow';
+    let leafIdx = 0;
+    headerGroups.forEach(g => {
+      const th = document.createElement('th');
+      if(g.sub){
+        th.colSpan = g.span;
+        th.textContent = g.label;
+      } else {
+        th.rowSpan = 2;
+        const btn = document.createElement('button');
+        const globalIdx = leafIdx;
+        const arrow = sortState.col === globalIdx ? (sortState.dir === 1 ? '▲' : '▼') : '';
+        btn.innerHTML = `<span>${escapeHtml(g.label)}</span><span class="arrow">${arrow}</span>`;
+        btn.addEventListener('click', ()=>{
+          if(sortState.col === globalIdx){ sortState.dir *= -1; } else { sortState.col = globalIdx; sortState.dir = 1; }
+          renderAll();
+        });
+        th.appendChild(btn);
+      }
+      groupRow.appendChild(th);
+      leafIdx += g.span;
     });
-    th.appendChild(btn);
-    el.headRow.appendChild(th);
-  });
+    el.titleRow.insertAdjacentElement('afterend', groupRow);
+
+    leafIdx = 0;
+    headerGroups.forEach(g => {
+      if(g.sub){
+        g.subLabels.forEach(subLabel => {
+          const th = document.createElement('th');
+          const globalIdx = leafIdx;
+          const btn = document.createElement('button');
+          const arrow = sortState.col === globalIdx ? (sortState.dir === 1 ? '▲' : '▼') : '';
+          btn.innerHTML = `<span>${escapeHtml(subLabel)}</span><span class="arrow">${arrow}</span>`;
+          btn.addEventListener('click', ()=>{
+            if(sortState.col === globalIdx){ sortState.dir *= -1; } else { sortState.col = globalIdx; sortState.dir = 1; }
+            renderAll();
+          });
+          th.appendChild(btn);
+          el.headRow.appendChild(th);
+          leafIdx++;
+        });
+      } else {
+        leafIdx++; // spanned from the group row above; no cell here
+      }
+    });
+  } else {
+    columns.forEach((c,i)=>{
+      const th = document.createElement('th');
+      const btn = document.createElement('button');
+      const arrow = sortState.col === i ? (sortState.dir === 1 ? '▲' : '▼') : '';
+      btn.innerHTML = `<span>${escapeHtml(c)}</span><span class="arrow">${arrow}</span>`;
+      btn.addEventListener('click', ()=>{
+        if(sortState.col === i){ sortState.dir *= -1; } else { sortState.col = i; sortState.dir = 1; }
+        renderAll();
+      });
+      th.appendChild(btn);
+      el.headRow.appendChild(th);
+    });
+  }
 
   el.bodyRows.innerHTML = '';
   view.forEach(r=>{
