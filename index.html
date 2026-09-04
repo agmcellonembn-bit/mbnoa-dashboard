@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -175,39 +175,39 @@
   .toolbar-actions{ display:flex; gap:8px; }
   button.btn.small{ padding:7px 12px; font-size:12px; }
 
-  /* ---------- Table (desktop) — black/white bordered style ---------- */
+  /* ---------- Table (desktop) — light blue bordered style ---------- */
   .table-wrap{
-    background:#0B0B0B; border:1px solid rgba(255,255,255,.55); border-radius:0;
+    background:#CFE8FB; border:1px solid #0B3A5C; border-radius:0;
     overflow:auto;
   }
   table{ width:100%; border-collapse:collapse; font-size:15px; table-layout:auto; }
   #titleCell{
-    text-align:center; padding:16px 12px; border:1px solid rgba(255,255,255,.4);
+    text-align:center; padding:16px 12px; border:1px solid #0B3A5C;
     font-family:'Inter',sans-serif; font-weight:600; font-size:22px;
-    color:#FFFFFF; text-transform:uppercase; letter-spacing:.02em;
-    background:#0B0B0B;
+    color:#06263D; text-transform:uppercase; letter-spacing:.02em;
+    background:#B7DBF7;
   }
   thead th{
-    position:sticky; top:0; background:#0B0B0B;
-    text-align:center; padding:0; border:1px solid rgba(255,255,255,.4);
-    font-family:'Inter',sans-serif; font-size:16px; font-weight:500;
-    color:#FFFFFF; text-transform:none;
+    position:sticky; top:0; background:#B7DBF7;
+    text-align:center; padding:0; border:1px solid #0B3A5C;
+    font-family:'Inter',sans-serif; font-size:16px; font-weight:600;
+    color:#06263D; text-transform:none;
     white-space:normal; word-break:normal; overflow-wrap:break-word;
     vertical-align:middle;
   }
   thead th button{
     all:unset; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px;
-    padding:12px 8px; width:100%; box-sizing:border-box; line-height:1.25; color:#FFFFFF;
+    padding:12px 8px; width:100%; box-sizing:border-box; line-height:1.25; color:#06263D;
   }
-  thead th button:hover{ color:#CFE8FB; }
+  thead th button:hover{ color:#0B4C8C; }
   thead th .arrow{ font-size:11px; opacity:.7; flex:none; }
   tbody td{
-    padding:10px 16px; border:1px solid rgba(255,255,255,.4);
-    color:#FFFFFF; font-variant-numeric:tabular-nums;
+    padding:10px 16px; border:1px solid #0B3A5C;
+    color:#0B1F2E; font-variant-numeric:tabular-nums;
     text-align:left; font-weight:400;
     white-space:pre-line; overflow-wrap:break-word;
   }
-  tbody tr:hover{ background:rgba(255,255,255,.05); }
+  tbody tr:hover{ background:#BEE0FA; }
   td.metric-good{ background:#1B5E20 !important; color:#FFFFFF; font-weight:700; }
   td.metric-bad{ background:#B71C1C !important; color:#FFFFFF; font-weight:700; }
 
@@ -220,16 +220,16 @@
   /* ---------- Mobile cards ---------- */
   .cards{ display:none; flex-direction:column; gap:10px; }
   .card{
-    background:#0B0B0B; border:1px solid rgba(255,255,255,.55);
+    background:#CFE8FB; border:1px solid #0B3A5C;
     border-radius:0; padding:12px 14px;
   }
   .card .field{
     display:flex; justify-content:space-between; gap:10px; padding:5px 4px;
-    border-bottom:1px solid rgba(255,255,255,.3); font-size:13px; color:#FFFFFF;
+    border-bottom:1px solid #0B3A5C; font-size:13px; color:#0B1F2E;
   }
   .card .field:last-child{ border-bottom:none; }
-  .card .field .k{ color:#CFE8FB; font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
-  .card .field .v{ text-align:right; font-weight:500; color:#FFFFFF; white-space:pre-line; }
+  .card .field .k{ color:#0B4C8C; font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  .card .field .v{ text-align:right; font-weight:500; color:#0B1F2E; white-space:pre-line; }
   .card .field.metric-good{ background:#1B5E20; border-radius:6px; }
   .card .field.metric-good .k, .card .field.metric-good .v{ color:#FFFFFF; font-weight:700; }
   .card .field.metric-bad{ background:#B71C1C; border-radius:6px; }
@@ -335,7 +335,7 @@ const CONFIG = {
   SHEET_ID: "1R6cRutGOC_CQTbCwetZYEYnfwmbedCAwcevORYCxz8M",
   TITLE: "INTEGRATED DASHBOARD OF MBN OA",
   AUTO_REFRESH_SECONDS: 60,
-  API_KEY: "AIzaSyAVrhHs2xiCl2kF1_IujMxHZDk6tNmsjY4", // from Google Cloud Console, with the "Google Sheets API" enabled
+  API_KEY: "PASTE_YOUR_GOOGLE_API_KEY_HERE", // from Google Cloud Console, with the "Google Sheets API" enabled
   CATEGORIES: [
     { name: "CFA",          color: "#2E9E7C" },
     { name: "CM",           color: "#17C4E6" },
