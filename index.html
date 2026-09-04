@@ -407,7 +407,15 @@ function detectTables(rows){
     }
     if(i >= n) break;
 
-    const header = rows[i].map((h, idx) => (h && String(h).trim()) || `Column ${idx + 1}`);
+    let lastHeaderText = null;
+    const seenHeaderCounts = {};
+    const header = rows[i].map((h, idx) => {
+      const raw = (h && String(h).trim()) || '';
+      if(raw){ lastHeaderText = raw; }
+      const base = raw || lastHeaderText || `Column ${idx + 1}`;
+      seenHeaderCounts[base] = (seenHeaderCounts[base] || 0) + 1;
+      return seenHeaderCounts[base] > 1 ? `${base} (${seenHeaderCounts[base]})` : base;
+    });
     i++;
 
     const dataRows = [];
