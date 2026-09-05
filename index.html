@@ -313,14 +313,17 @@
 <script>
 /* ============================================================
    CONFIG
-   1. Open your Google Sheet → File → Share → "Anyone with the
-      link" set to Viewer (no need to "publish to web").
-   2. Copy the Sheet ID from the URL:
-      docs.google.com/spreadsheets/d/<SHEET_ID>/edit#gid=<GID>
-   3. Paste SHEET_ID below. CATEGORIES lists each top-level button
-      shown on the landing page — "name" MUST exactly match a real
-      tab name in your Google Sheet (case/spacing matters), and
-      "color" is that button's background color.
+   1. Open your Google Sheet → Extensions → Apps Script, paste in
+      the Code.gs provided alongside this file, then
+      Deploy → New deployment → Web app (Execute as: Me,
+      Who has access: Anyone).
+   2. Copy the resulting Web App URL (ends in /exec) and paste it
+      into APPS_SCRIPT_URL below. The Sheet can stay fully private —
+      no API key, no public sharing, nothing secret in this file.
+   3. CATEGORIES lists each top-level button shown on the landing
+      page — "name" MUST exactly match a real tab name in your
+      Google Sheet (case/spacing matters), and "color" is that
+      button's background color.
 
    Each tab can hold MULTIPLE tables — a table is auto-detected as
    an optional short title row, followed by a header row (≥4 filled
@@ -332,10 +335,12 @@
    there, scoped to just that one table).
    ============================================================ */
 const CONFIG = {
-  SHEET_ID: "1R6cRutGOC_CQTbCwetZYEYnfwmbedCAwcevORYCxz8M",
+  // Paste the URL you get after Deploy → New deployment → Web app in Apps Script.
+  // No API key, no Sheet ID, no public sharing needed anymore — the script
+  // runs bound to your Sheet and reads it directly. The sheet can stay fully private.
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwt4ioQHJKQQ66VRDnBYvwPGGCzfxxBZ8aQa51MdbV2OXh3lHYEKHKU7dcvpHM9WXaw/exec",
   TITLE: "INTEGRATED DASHBOARD OF MBN OA",
   AUTO_REFRESH_SECONDS: 60,
-  API_KEY: "AIzaSyAVrhHs2xiCl2kF1_IujMxHZDk6tNmsjY4", // from Google Cloud Console, with the "Google Sheets API" enabled
   CATEGORIES: [
     { name: "CFA",          color: "#2E9E7C" },
     { name: "CM",           color: "#17C4E6" },
@@ -347,37 +352,26 @@ const CONFIG = {
 
 /* ---------------- Shared sheet-fetching + table-detection ---------------- */
 
-/* Fetches one tab via the Google Sheets API (not the plain CSV export) so
-   we get back the EXACT merged-cell ranges alongside the values — no more
-   guessing which columns are grouped from blank-cell patterns. Requires
-   CONFIG.API_KEY with the Sheets API enabled, and the sheet still shared
-   as "Anyone with the link → Viewer" (a plain API key only works for
-   public/link-shared sheets, not private ones). */
+/* Fetches one tab's data + merge info via a bound Apps Script Web App
+   (see Code.gs) instead of calling the Sheets API directly. This keeps
+   no secret in the client at all — the script reads the sheet using its
+   own execution identity, so the sheet doesn't need to be publicly shared. */
 function buildSheetApiUrl(sheetName){
-  const fields = 'sheets(data(rowData(values(formattedValue))),merges)';
-  return `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}` +
-    `?ranges=${encodeURIComponent(sheetName)}&includeGridData=true` +
-    `&fields=${encodeURIComponent(fields)}&key=${encodeURIComponent(CONFIG.API_KEY)}`;
+  return `${CONFIG.APPS_SCRIPT_URL}?tab=${encodeURIComponent(sheetName)}`;
 }
 
 function fetchSheetGrid(sheetName){
-  if(!CONFIG.API_KEY || CONFIG.API_KEY.indexOf('PASTE_YOUR') === 0){
-    return Promise.reject(new Error('No Google API key set — paste one into CONFIG.API_KEY near the top of the script.'));
+  if(!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0){
+    return Promise.reject(new Error('No Apps Script Web App URL set — paste your deployed URL into CONFIG.APPS_SCRIPT_URL.'));
   }
   return fetch(buildSheetApiUrl(sheetName), { cache: 'no-store' })
-    .then(res => res.json().then(json => ({ ok: res.ok, status: res.status, json })))
-    .then(({ ok, status, json }) => {
-      if(!ok){
-        const apiMsg = json && json.error && json.error.message;
-        throw new Error(apiMsg ? `Sheets API: ${apiMsg}` : `HTTP ${status} loading "${sheetName}" tab`);
+    .then(res => res.json())
+    .then(json => {
+      if(json.error){
+        throw new Error(json.error);
       }
-      const sheetObj = (json.sheets && json.sheets[0]) || {};
-      const dataBlock = (sheetObj.data && sheetObj.data[0]) || {};
-      const rowDataArr = dataBlock.rowData || [];
-      const rawRows = rowDataArr.map(rd =>
-        (rd.values || []).map(v => (v && v.formattedValue !== undefined) ? v.formattedValue : '')
-      );
-      const mergesRaw = sheetObj.merges || [];
+      const rawRows = json.rows || [];
+      const mergesRaw = json.merges || [];
       const width = Math.max(
         0,
         ...rawRows.map(r => r.length),
@@ -388,13 +382,7 @@ function fetchSheetGrid(sheetName){
         while(copy.length < width) copy.push('');
         return copy;
       });
-      const merges = mergesRaw.map(m => ({
-        startRowIndex: m.startRowIndex || 0,
-        endRowIndex: m.endRowIndex,
-        startColumnIndex: m.startColumnIndex || 0,
-        endColumnIndex: m.endColumnIndex
-      }));
-      return { rows, merges, lastModified: null };
+      return { rows, merges: mergesRaw, lastModified: json.lastModified || null };
     });
 }
 
@@ -804,7 +792,7 @@ function handleError(err){
     `<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;opacity:.85;">Reason: ${escapeHtml(reason)}</span><br><br>` +
     (isFileProtocol
       ? `You're opening this file directly (file://). Google often blocks that. Host it (GitHub Pages / Netlify / Cloudflare Pages) and open the https:// link instead.`
-      : `Double-check CONFIG.SHEET_ID and that the sheet is shared as "Anyone with the link → Viewer".`);
+      : `Double-check CONFIG.APPS_SCRIPT_URL is your deployed Web App's /exec URL, and that the deployment's access is set to "Anyone".`);
   el.tableWrap.style.display = 'none';
   el.cardsWrap.innerHTML = '';
   console.error(err);
