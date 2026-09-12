@@ -223,7 +223,7 @@
   .icon-spin{ animation:spin 0.9s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
-  main{ padding:18px; max-width:1400px; margin:0 auto; }
+  main{ padding:18px; width:100%; max-width:none; margin:0 auto; }
 
   .meta-row{
     display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px;
@@ -247,40 +247,143 @@
   .toolbar-actions{ display:flex; gap:8px; }
   button.btn.small{ padding:7px 12px; font-size:12px; }
 
-  /* ---------- Table (desktop) — light blue bordered style ---------- */
+  /* ---------- Professional responsive tables ---------- */
+  /* Stronger 2px blue grid for a clearer, more professional table appearance. */
   .table-wrap{
-    background:#CFE8FB; border:1px solid #0B3A5C; border-radius:0;
-    overflow:auto;
+    width:100%;
+    max-width:100%;
+    background:#CFE8FB;
+    border:3px solid #0B3A5C;
+    border-radius:8px;
+    overflow-x:auto;
+    overflow-y:visible;
+    box-shadow:0 5px 18px rgba(0,0,0,.16);
   }
-  table{ width:100%; border-collapse:collapse; font-size:15px; table-layout:auto; }
+
+  /* Every table fills the available screen width and gives each column
+     an equal share. Long values wrap instead of forcing the page wider. */
+  table{
+    width:100%;
+    min-width:100%;
+    border-collapse:collapse;
+    border-spacing:0;
+    font-size:14px;
+    table-layout:fixed;
+  }
+
   #titleCell{
-    text-align:center; padding:16px 12px; border:1px solid #0B3A5C;
-    font-family:'Inter',sans-serif; font-weight:600; font-size:22px;
-    color:#06263D; text-transform:uppercase; letter-spacing:.02em;
+    text-align:center;
+    padding:13px 12px;
+    border:2px solid #0B3A5C;
+    border-bottom:3px solid #06263D;
+    font-family:'Inter',sans-serif;
+    font-weight:700;
+    font-size:19px;
+    color:#06263D;
+    text-transform:uppercase;
+    letter-spacing:.025em;
     background:#B7DBF7;
   }
+
+  .table-title-content{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    min-height:44px;
+  }
+
   thead th{
-    position:sticky; top:0; background:#B7DBF7;
-    text-align:center; padding:0; border:1px solid #0B3A5C;
-    font-family:'Inter',sans-serif; font-size:16px; font-weight:600;
-    color:#06263D; text-transform:none;
-    white-space:normal; word-break:normal; overflow-wrap:break-word;
+    position:sticky;
+    top:0;
+    z-index:3;
+    background:#B7DBF7;
+    text-align:center;
+    padding:0;
+    border:2px solid #0B3A5C;
+    border-bottom:3px solid #06263D;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    font-weight:700;
+    color:#06263D;
+    text-transform:none;
+    white-space:normal;
+    word-break:normal;
+    overflow-wrap:anywhere;
     vertical-align:middle;
   }
+
+  /* Header cells are consistently centered and vertically balanced. */
   thead th button{
-    all:unset; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px;
-    padding:12px 8px; width:100%; box-sizing:border-box; line-height:1.25; color:#06263D;
+    all:unset;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    width:100%;
+    min-height:46px;
+    padding:9px 7px;
+    box-sizing:border-box;
+    line-height:1.25;
+    text-align:center;
+    color:#06263D;
   }
-  thead th button:hover{ color:#0B4C8C; }
-  thead th .arrow{ font-size:11px; opacity:.7; flex:none; }
+  thead th button:hover{ color:#0B4C8C; background:rgba(255,255,255,.18); }
+  thead th .arrow{ font-size:10px; opacity:.7; flex:none; }
+
+  /* Equal-width data columns, with clean and predictable alignment. */
   tbody td{
-    padding:10px 16px; border:1px solid #0B3A5C;
-    color:#0B1F2E; font-variant-numeric:tabular-nums;
-    text-align:left; font-weight:400;
-    white-space:pre-line; overflow-wrap:break-word;
+    width:auto;
+    padding:10px 9px;
+    border:2px solid #0B3A5C;
+    color:#0B1F2E;
+    font-variant-numeric:tabular-nums;
+    text-align:center;
+    vertical-align:middle;
+    font-weight:400;
+    white-space:pre-line;
+    overflow-wrap:anywhere;
+    word-break:normal;
+    line-height:1.35;
   }
-  tbody td:not(:first-child){ text-align:center; }
-  tbody tr:hover{ background:#BEE0FA; }
+
+  /* First column is usually a name/description column, so keep it readable. */
+  tbody td:first-child{
+    text-align:left;
+    font-weight:600;
+    border-right:3px solid #0B3A5C;
+  }
+
+  tbody tr:nth-child(even){ background:rgba(255,255,255,.24); }
+  tbody tr:hover{
+    background:#BEE0FA;
+    box-shadow:inset 0 0 0 1px rgba(11,58,92,.28);
+  }
+
+  /* Keep grouped headers visually aligned with their equal-width columns. */
+  #groupHeadRow th{
+    background:#A9D3F1;
+    border-width:2px;
+    border-bottom:3px solid #06263D;
+    font-size:13px;
+    font-weight:700;
+  }
+
+  /* When a table has many columns, retain equal sizing but keep text compact. */
+  @media (min-width:721px) and (max-width:1100px){
+    table{ font-size:13px; }
+    thead th{ font-size:12.5px; }
+    thead th button{ min-height:42px; padding:7px 5px; }
+    tbody td{ padding:8px 5px; }
+  }
+
+  @media (max-width:720px){
+    .table-wrap{ border-radius:6px; }
+    table{ font-size:12.5px; }
+    thead th{ font-size:12px; }
+    tbody td{ padding:7px 5px; }
+  }
   td.metric-good{ background:#1B5E20 !important; color:#FFFFFF; font-weight:700; }
   td.metric-bad{ background:#B71C1C !important; color:#FFFFFF; font-weight:700; }
 
@@ -298,7 +401,7 @@
   }
   .card .field{
     display:flex; justify-content:space-between; gap:10px; padding:5px 4px;
-    border-bottom:1px solid #0B3A5C; font-size:13px; color:#0B1F2E;
+    border-bottom:2px solid #0B3A5C; font-size:13px; color:#0B1F2E;
   }
   .card .field:last-child{ border-bottom:none; }
   .card .field .k{ color:#0B4C8C; font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
@@ -844,6 +947,7 @@ const el = {
   nextRefresh: document.getElementById('nextRefresh'),
   stateBox: document.getElementById('stateBox'),
   tableWrap: document.getElementById('tableWrap'),
+  dataTable: document.getElementById('dataTable'),
   titleRow: document.getElementById('titleRow'),
   titleCell: document.getElementById('titleCell'),
   headRow: document.getElementById('headRow'),
@@ -988,6 +1092,22 @@ function exportXlsx(){
 }
 
 function renderTable(view){
+  if(!el.dataTable){
+    throw new Error('Dashboard internal error: #dataTable element was not found in the page.');
+  }
+  // Force a professional equal-width layout for every generated table.
+  // The colgroup makes the browser distribute the available screen width
+  // evenly across all leaf columns, including tables with grouped headers.
+  const oldColGroup = el.dataTable.querySelector('colgroup');
+  if(oldColGroup) oldColGroup.remove();
+  const colGroup = document.createElement('colgroup');
+  columns.forEach(() => {
+    const col = document.createElement('col');
+    col.style.width = (100 / Math.max(columns.length, 1)) + '%';
+    colGroup.appendChild(col);
+  });
+  el.dataTable.insertBefore(colGroup, el.dataTable.firstElementChild);
+
   el.titleCell.colSpan = columns.length;
   el.titleCell.innerHTML =
     `<div class="table-title-content">
