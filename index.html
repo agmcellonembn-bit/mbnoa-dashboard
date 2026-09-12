@@ -113,7 +113,6 @@
     border-right:2px solid rgba(0,0,0,.28); border-bottom:2px solid rgba(0,0,0,.28);
     cursor:pointer; word-break:break-word; transition:filter .15s ease, box-shadow .15s ease;
   }
-  .category-btn:nth-child(7){ border-right:none; }
   .category-btn:last-child{ border-right:none; }
   .category-btn:hover{ filter:brightness(1.1); }
   .category-btn.active{ box-shadow:inset 0 0 0 3px rgba(255,255,255,.85); }
@@ -135,20 +134,17 @@
     padding:16px 18px; color:var(--muted); font-size:13.5px; font-family:'Inter',sans-serif;
   }
   .category-panel .error-msg{ color:#FF8A80; }
+  .sheet-link{ color:#0B4C8C; font-weight:600; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px; word-break:break-all; }
+  .sheet-link:hover{ color:#06263D; }
+  .sheet-link-icon{ margin-left:5px; font-weight:700; }
 
   @media (max-width: 900px){
     .category-btn{ flex-basis:33.333%; min-width:0; }
-    .category-btn:nth-child(7){ border-right:2px solid rgba(0,0,0,.28); }
     .category-btn:nth-child(3n){ border-right:none; }
   }
-
   @media (max-width: 640px){
     .category-row{ flex-direction:column; flex-wrap:nowrap; }
-    .category-btn,
-    .category-btn:nth-child(7),
-    .category-btn:nth-child(3n){
-      flex-basis:auto; border-right:none; border-bottom:2px solid rgba(0,0,0,.28);
-    }
+    .category-btn, .category-btn:nth-child(3n){ flex-basis:auto; border-right:none; border-bottom:2px solid rgba(0,0,0,.28); }
     .category-btn:last-child{ border-bottom:none; }
   }
 
@@ -665,6 +661,18 @@ function rowsToObjects(header, dataRows){
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+function isGoogleSheetUrl(value){
+  return /^https?:\/\/docs\.google\.com\/spreadsheets\/d\//i.test(String(value || '').trim());
+}
+
+function renderCellContent(value, makeLinks){
+  const text = String(value ?? '');
+  if(makeLinks && isGoogleSheetUrl(text)){
+    const safeUrl = escapeHtml(text);
+    return `<a class="sheet-link" href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="Open Google Sheet">${safeUrl}<span class="sheet-link-icon">↗</span></a>`;
+  }
+  return escapeHtml(text);
+}
 function isNumeric(v){
   if(v===''||v===null||v===undefined) return false;
   return !isNaN(parseNumber(v));
@@ -1063,7 +1071,7 @@ function renderTable(view){
       const td = document.createElement('td');
       const cellClass = classifyCell(c, r[c]);
       if(cellClass) td.classList.add(cellClass);
-      td.textContent = r[c];
+      td.innerHTML = renderCellContent(r[c], focusedTab === "Important Google sheets");
       tr.appendChild(td);
     });
     el.bodyRows.appendChild(tr);
@@ -1080,7 +1088,7 @@ function renderCards(view){
       field.className = 'field';
       const fieldClass = classifyCell(c, r[c]);
       if(fieldClass) field.classList.add(fieldClass);
-      field.innerHTML = `<span class="k">${escapeHtml(c)}</span><span class="v">${escapeHtml(String(r[c]))}</span>`;
+      field.innerHTML = `<span class="k">${escapeHtml(c)}</span><span class="v">${renderCellContent(r[c], focusedTab === "Important Google sheets")}</span>`;
       card.appendChild(field);
     });
     el.cardsWrap.appendChild(card);
