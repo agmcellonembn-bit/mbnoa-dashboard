@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.webkit.ConsoleMessage
@@ -40,7 +41,7 @@ class MainActivity : Activity() {
         private const val DASHBOARD_URL =
             "https://agmcellonembn-bit.github.io/mbnoa-dashboard/"
 
-        // FIXED: Color.rgb() is not a compile-time constant.
+        // Color.rgb() cannot be assigned to a const val.
         private val BG = Color.rgb(11, 15, 18)
     }
 
@@ -98,7 +99,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 visibility = View.GONE
                 webView.visibility = View.VISIBLE
-                webView.reload()
+                webView.loadUrl(DASHBOARD_URL)
             }
         }
 
@@ -128,7 +129,10 @@ class MainActivity : Activity() {
         if (savedInstanceState == null) {
             webView.loadUrl(DASHBOARD_URL)
         } else {
-            webView.restoreState(savedInstanceState)
+            val restored = webView.restoreState(savedInstanceState)
+            if (restored == null) {
+                webView.loadUrl(DASHBOARD_URL)
+            }
         }
     }
 
@@ -158,7 +162,6 @@ class MainActivity : Activity() {
         }
 
         CookieManager.getInstance().setAcceptCookie(true)
-
         CookieManager.getInstance()
             .setAcceptThirdPartyCookies(webView, true)
 
@@ -182,6 +185,17 @@ class MainActivity : Activity() {
                 url: String
             ): Boolean {
                 return routeUrl(Uri.parse(url))
+            }
+
+            override fun onPageStarted(
+                view: WebView,
+                url: String,
+                favicon: android.graphics.Bitmap?
+            ) {
+                progress.visibility = View.VISIBLE
+                progress.progress = 0
+                offlineMessage.visibility = View.GONE
+                view.visibility = View.VISIBLE
             }
 
             override fun onPageFinished(
@@ -222,7 +236,6 @@ class MainActivity : Activity() {
                 newProgress: Int
             ) {
                 progress.progress = newProgress
-
                 progress.visibility =
                     if (newProgress in 1..99) {
                         View.VISIBLE
@@ -234,23 +247,23 @@ class MainActivity : Activity() {
             override fun onConsoleMessage(
                 consoleMessage: ConsoleMessage
             ): Boolean {
-                android.util.Log.d(
+                Log.d(
                     "MBNOA-Web",
                     "${consoleMessage.message()} " +
-                            "(${consoleMessage.sourceId()}:${consoleMessage.lineNumber()})"
+                            "(${consoleMessage.sourceId()}:" +
+                            "${consoleMessage.lineNumber()})"
                 )
-
                 return true
             }
         }
 
         webView.setDownloadListener(
             DownloadListener {
-                    url,
-                    userAgent,
-                    contentDisposition,
-                    mimeType,
-                    _ ->
+                url,
+                userAgent,
+                contentDisposition,
+                mimeType,
+                _ ->
 
                 try {
                     val uri = Uri.parse(url)
@@ -269,24 +282,24 @@ class MainActivity : Activity() {
                             .setDescription(
                                 "Downloading from MBN OA Dashboard"
                             )
-                            .setMimeType(mimeType)
-                            .addRequestHeader(
-                                "User-Agent",
-                                userAgent
-                            )
                             .setNotificationVisibility(
                                 DownloadManager.Request
                                     .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                            )
+                            .addRequestHeader(
+                                "User-Agent",
+                                userAgent
                             )
                             .setDestinationInExternalPublicDir(
                                 Environment.DIRECTORY_DOWNLOADS,
                                 filename
                             )
 
-                        (
+                        val manager =
                             getSystemService(DOWNLOAD_SERVICE)
                                 as DownloadManager
-                        ).enqueue(request)
+
+                        manager.enqueue(request)
 
                         Toast.makeText(
                             this,
@@ -294,7 +307,6 @@ class MainActivity : Activity() {
                             Toast.LENGTH_SHORT
                         ).show()
                     }
-
                 } catch (e: Exception) {
                     Toast.makeText(
                         this,
@@ -357,7 +369,6 @@ class MainActivity : Activity() {
     }
 
     private fun showOffline() {
-
         runOnUiThread {
             webView.visibility = View.GONE
             progress.visibility = View.GONE
@@ -391,7 +402,10 @@ class MainActivity : Activity() {
                 if(href.indexOf('blob:')===0){
 
                   fetch(href)
-                    .then(function(r){return r.blob();})
+                    .then(function(r){
+                      if(!r.ok) throw new Error('Download failed');
+                      return r.blob();
+                    })
                     .then(function(blob){
 
                       var reader=new FileReader();
@@ -456,7 +470,6 @@ class MainActivity : Activity() {
         ) {
 
             io.execute {
-
                 try {
                     val bytes = Base64.decode(
                         base64,
@@ -512,25 +525,30 @@ class MainActivity : Activity() {
                             "Could not create download file"
                         )
 
-                        resolver.openOutputStream(item)?.use {
-                            it.write(bytes)
-                        } ?: throw IllegalStateException(
-                            "Could not write download file"
-                        )
+                        try {
+                            resolver.openOutputStream(item)?.use {
+                                it.write(bytes)
+                            } ?: throw IllegalStateException(
+                                "Could not write download file"
+                            )
 
-                        values.clear()
+                            val completedValues = ContentValues().apply {
+                                put(
+                                    MediaStore.Downloads.IS_PENDING,
+                                    0
+                                )
+                            }
 
-                        values.put(
-                            MediaStore.Downloads.IS_PENDING,
-                            0
-                        )
-
-                        resolver.update(
-                            item,
-                            values,
-                            null,
-                            null
-                        )
+                            resolver.update(
+                                item,
+                                completedValues,
+                                null,
+                                null
+                            )
+                        } catch (e: Exception) {
+                            resolver.delete(item, null, null)
+                            throw e
+                        }
 
                     } else {
 
@@ -540,7 +558,6 @@ class MainActivity : Activity() {
                             ) ?: filesDir
 
                         dir.mkdirs()
-
                         File(dir, safeName).writeBytes(bytes)
                     }
 
@@ -574,7 +591,6 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in API")
     override fun onBackPressed() {
-
         if (::webView.isInitialized &&
             webView.canGoBack()
         ) {
@@ -585,14 +601,13 @@ class MainActivity : Activity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-
-        webView.saveState(outState)
-
+        if (::webView.isInitialized) {
+            webView.saveState(outState)
+        }
         super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
-
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.removeJavascriptInterface(
@@ -602,7 +617,6 @@ class MainActivity : Activity() {
         }
 
         io.shutdown()
-
         super.onDestroy()
     }
 }
